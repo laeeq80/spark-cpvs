@@ -72,10 +72,12 @@ object Docker extends Logging {
     val sc = new SparkContext(conf)
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
     
+    val receptorStream = new FileInputStream(params.receptorFile)
+    
     val t0 = System.currentTimeMillis
     var poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-      .dock(System.getenv("DOCKING_CPP"), OEDockMethod.Chemgauss4, OESearchResolution.Standard,params.receptorFile)
+      .dock(System.getenv("DOCKING_CPP"), OEDockMethod.Chemgauss4, OESearchResolution.Standard,receptorStream)
     if(params.collapse > 0) {
       poses = poses.collapse(params.collapse)
     }  

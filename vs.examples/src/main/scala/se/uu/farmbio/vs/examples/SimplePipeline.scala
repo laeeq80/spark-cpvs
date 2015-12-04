@@ -16,6 +16,7 @@ object SimplePipeline {
 
   case class Params(
     master: String = null,
+    receptorFile: String = null,
     cppExeFile: String = null,
     topPosesPath: String = null,
     smilesFile: String = null,
@@ -30,6 +31,10 @@ object SimplePipeline {
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
+       arg[String]("<receptor-file>")
+        .required()
+        .text("path to input OEB receptor file")
+        .action((x, c) => c.copy(receptorFile = x))  
       arg[String]("<CPP-EXE-file>")
         .required()
         .text("path to input cpp Executable file")
@@ -67,14 +72,16 @@ object SimplePipeline {
     }
     val sc = new SparkContext(conf)
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SmilesRecordReader.size", "150")
-
+    
+    val receptorStream = new FileInputStream(params.receptorFile)
+    
     val res = new SBVSPipeline(sc)
       .readSmilesFile(params.smilesFile)
       .filter(OEFilterType.Lead)
       .generateConformers(0, 1) //generate 1 conformer per SMILES
       .saveAsTextFile(params.conformersPath)
       .dock(params.cppExeFile, OEDockMethod.Chemgauss4,
-        OESearchResolution.Standard,"data/receptor.oeb")
+       OESearchResolution.Standard,receptorStream)
       .sortByScore
       .getMolecules
       .take(10) //take first 10
