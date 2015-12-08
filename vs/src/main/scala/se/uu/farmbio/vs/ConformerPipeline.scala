@@ -1,18 +1,16 @@
 package se.uu.farmbio.vs
 
 import java.io.PrintWriter
+
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.io.Source
-import org.apache.spark.rdd.RDD
+
 import org.apache.spark.SparkFiles
-import java.io.InputStream
-import org.apache.commons.io.IOUtils
-import java.io.FileOutputStream
-import java.io.BufferedOutputStream
+import org.apache.spark.rdd.RDD
 
 trait ConformerTransforms {
 
-  def dock(cppExePath: String, method: Int, resolution: Int, receptor: InputStream): SBVSPipeline with PoseTransforms
+  def dock(cppExePath: String, method: Int, resolution: Int, receptor: String): SBVSPipeline with PoseTransforms
   def repartition: SBVSPipeline with ConformerTransforms
 
 }
@@ -51,19 +49,10 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
 
   }
 
-  override def dock(cppExePath: String, method: Int, resolution: Int, receptor: InputStream) = {
+  override def dock(cppExePath: String, method: Int, resolution: Int, receptor: String) = {
 
-    val receptorBytes = IOUtils.toByteArray(receptor)
-    val bcastReceptor = sc.broadcast(receptorBytes)
-    rdd.mapPartitions(
-      { iter =>
-        val bos = new BufferedOutputStream(new FileOutputStream("tempPath/receptor.oeb"))
-        Stream.continually(bos.write(bcastReceptor.value))
-        bos.close
-        iter
-      })
-
-    val pipedRDD = this.pipe(List(cppExePath, method.toString(), resolution.toString(), "tempPath/receptor.oeb")).getMolecules
+    sc.addFile(receptor)
+    val pipedRDD = this.pipe(List(cppExePath, method.toString(), resolution.toString(), SparkFiles.get("receptor.oeb"))).getMolecules
     val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
     new PosePipeline(res)
 

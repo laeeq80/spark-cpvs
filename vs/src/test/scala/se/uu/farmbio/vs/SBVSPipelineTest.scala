@@ -131,7 +131,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     val res = new SBVSPipeline(sc)
       .readConformerFile(getClass.getResource("filtered_conformers.sdf").getPath)
       .dock(System.getenv("DOCKING_CPP"), 
-          OEDockMethod.Chemgauss4, OESearchResolution.Standard,getClass.getResourceAsStream("receptor.oeb"))
+          OEDockMethod.Chemgauss4, OESearchResolution.Standard,"data/receptor.oeb")
       .getMolecules
       .collect
       

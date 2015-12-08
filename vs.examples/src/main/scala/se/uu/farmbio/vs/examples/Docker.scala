@@ -77,7 +77,7 @@ object Docker extends Logging {
     val t0 = System.currentTimeMillis
     var poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-      .dock(System.getenv("DOCKING_CPP"), OEDockMethod.Chemgauss4, OESearchResolution.Standard,receptorStream)
+      .dock(System.getenv("DOCKING_CPP"), OEDockMethod.Chemgauss4, OESearchResolution.Standard,params.receptorFile)
     if(params.collapse > 0) {
       poses = poses.collapse(params.collapse)
     }  
