@@ -135,10 +135,11 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
 
   override def generateSignatures = {
 
-    val molsWithCarrySdfMolAndFakeLabels = rdd.flatMap {
+    val splitRDD = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
+    val molsWithCarrySdfMolAndFakeLabels = splitRDD.flatMap {
       case (sdfmol) =>
         ConformerPipeline.SdfStringToIAtomContainer(sdfmol)
-          .map { case (mol) => (sdfmol, 0.0, mol) }          //using sdfmol because mol gives serialization error in atom2LP method
+          .map { case (mol) => (sdfmol, 0.0, mol) } //using sdfmol because mol gives serialization error in atom2LP method
     }
     val (lps, mapping) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithCarrySdfMolAndFakeLabels, null, 1, 3)
     val molAndSparseVector = lps.map { case (mol, lp) => (mol, lp.features.toSparse.toString()) }

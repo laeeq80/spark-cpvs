@@ -8,6 +8,9 @@ import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import java.io.PrintWriter
 
+import openeye.oedocking.OEDockMethod
+import openeye.oedocking.OESearchResolution
+
 /**
  * @author laeeq
  */
@@ -17,7 +20,9 @@ object DockerWithML extends Logging {
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
-    signatureOutputFile: String = null)
+    signatureOutputFile: String = null,
+    receptorFile : String = null  
+  )
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -30,6 +35,10 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
+       arg[String]("<receptor-file>")
+        .required()
+        .text("path to input OEB receptor file")
+        .action((x, c) => c.copy(receptorFile = x))
       arg[String]("<signature-output-file>")
         .required()
         .text("path to output signature file")
@@ -54,15 +63,13 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-    val signatures = new SBVSPipeline(sc)
+       val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures()
+      .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
+      .sortByScore
       .getMolecules
-      .collect()
-
-    val pw = new PrintWriter(params.signatureOutputFile)
-    signatures.foreach(pw.println(_))
-    pw.close
+      .saveAsTextFile(params.signatureOutputFile)
    
     sc.stop()
 

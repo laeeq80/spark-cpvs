@@ -86,6 +86,7 @@ object Docker extends Logging {
     var poses = new SBVSPipeline(sc)
       .readConformerRDDs(Seq(sampleRDD))
       .dock(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
+      
     if (params.collapse > 0) {
       poses = poses.collapse(params.collapse)
     }
