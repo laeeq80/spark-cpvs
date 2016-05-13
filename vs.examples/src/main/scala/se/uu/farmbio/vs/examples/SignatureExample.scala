@@ -58,8 +58,13 @@ object SignatureExample extends Logging {
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .getMolecules
-      .saveAsTextFile(params.signatureOutputFile)
-
+      .collect
+      //.saveAsTextFile(params.signatureOutputFile)
+      
+    val pw = new PrintWriter(params.signatureOutputFile)
+    signatures.foreach(pw.println(_))
+    pw.close
+    
     sc.stop()
 
   }

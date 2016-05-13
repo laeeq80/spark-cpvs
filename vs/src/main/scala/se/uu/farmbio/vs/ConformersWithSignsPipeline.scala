@@ -22,6 +22,7 @@ object ConformersWithSignsPipeline {
 
     //Start executable
     val pb = new ProcessBuilder(command.asJava)
+    pb.redirectErrorStream(true)
     val proc = pb.start
     // Start a thread to print the process's stderr to ours
     new Thread("stderr reader") {
@@ -41,7 +42,8 @@ object ConformersWithSignsPipeline {
     }.start
     //Return results as a single string
     Source.fromInputStream(proc.getInputStream).mkString
-
+    
+    
   }
 }
 
@@ -63,8 +65,9 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
           resolution.toString(),
           SparkFiles.get(receptorFileName)))
     }
-
-    val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
+    
+    val res = pipedRDD.map(_.trim).filter(_.nonEmpty) //removes empty molecule caused by oechem optimization problem       
+        
     new PosePipeline(res)
 
   }

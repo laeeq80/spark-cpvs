@@ -50,11 +50,11 @@ object ConformerPipeline {
       }
     }.start
     //Return results as a single string
-    Source.fromInputStream(proc.getInputStream).mkString
-
+     Source.fromInputStream(proc.getInputStream).mkString
+    
   }
 
-  private def SdfStringToIAtomContainer = (sdfRecord: String) => {
+  private def SdfStringToIAtomContainer(sdfRecord: String) = {
     //get SDF as input stream
     val sdfByteArray = sdfRecord
       .getBytes(Charset.forName("UTF-8"))
@@ -81,7 +81,7 @@ object ConformerPipeline {
     res //return the molecule
   }
 
-  private def writeSignature = (sdfRecord: String, signature: String) => {
+  private def writeSignature(sdfRecord: String, signature: String) = {
     //get SDF as input stream
 
     val sdfByteArray = sdfRecord
@@ -100,14 +100,13 @@ object ConformerPipeline {
 
     while (it.hasNext()) {
       val mol = it.next
-      mol.setProperty("Signature", signature)
       mol.removeProperty("cdk:Remark")
+      mol.setProperty("Signature", signature)
       writer.write(mol)
     }
     writer.close
     reader.close
     strWriter.toString() //return the molecule  
-
   }
 
 }
@@ -130,12 +129,12 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
     }
 
     val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
+    
     new PosePipeline(res)
   }
 
   override def generateSignatures = {
-
-    val splitRDD = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
+    val splitRDD = rdd.flatMap(SBVSPipeline.splitSDFmolecules)        //without this we get same molecules multiple times.
     val molsWithCarrySdfMolAndFakeLabels = splitRDD.flatMap {
       case (sdfmol) =>
         ConformerPipeline.SdfStringToIAtomContainer(sdfmol)
@@ -143,7 +142,7 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
     }
     val (lps, mapping) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithCarrySdfMolAndFakeLabels, null, 1, 3)
     val molAndSparseVector = lps.map { case (mol, lp) => (mol, lp.features.toSparse.toString()) }
-    val res = molAndSparseVector.map { case (mol, sign) => ConformerPipeline.writeSignature(mol, sign) }
+    val res = molAndSparseVector.map { case (mol, sign) => ConformerPipeline.writeSignature(mol, sign) }.map(_.trim)
     new ConformersWithSignsPipeline(res)
   }
 

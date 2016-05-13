@@ -66,10 +66,14 @@ object DockerWithML extends Logging {
        val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures()
-      .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
+      .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard) 
       .sortByScore
       .getMolecules
-      .saveAsTextFile(params.signatureOutputFile)
+      .take(10)
+     
+    val pw = new PrintWriter(params.signatureOutputFile)
+    signatures.foreach(pw.println(_))
+    pw.close
    
     sc.stop()
 
