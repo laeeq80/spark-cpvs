@@ -1,22 +1,28 @@
 package se.uu.farmbio.vs
 
+import java.io.ByteArrayInputStream
 import java.io.PrintWriter
 import java.io.StringWriter
-import org.openscience.cdk.io.SDFWriter
+import java.nio.charset.Charset
 import java.nio.file.Paths
-import scala.collection.JavaConverters.seqAsJavaListConverter
+
+import org.openscience.cdk.io.SDFWriter
+import org.openscience.cdk.silent.ChemFile
+
 import scala.io.Source
+import scala.collection.JavaConverters.seqAsJavaListConverter
+
+import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.SparkFiles
 import org.apache.spark.rdd.RDD
-import se.uu.farmbio.sg.SGUtils
-import org.openscience.cdk.interfaces.IAtomContainer
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.SparkContext._
+import org.apache.spark.SparkContext
+
 import org.openscience.cdk.io.MDLV2000Reader
-import java.nio.charset.Charset
+import org.openscience.cdk.interfaces.IAtomContainer
 import org.openscience.cdk.tools.manipulator.ChemFileManipulator
-import java.io.ByteArrayInputStream
-import org.openscience.cdk.silent.ChemFile
+
+import se.uu.farmbio.sg.SGUtils
+
 import org.apache.spark.mllib.linalg.SparseVector
 
 trait ConformerTransforms {
@@ -28,7 +34,7 @@ trait ConformerTransforms {
 object ConformerPipeline {
 
   //The Spark built-in pipe splits molecules line by line, we need a custom one
-  private def pipeString(str: String, command: List[String]) = {
+  private[vs] def pipeString(str: String, command: List[String]) = {
 
     //Start executable
     val pb = new ProcessBuilder(command.asJava)
@@ -53,7 +59,23 @@ object ConformerPipeline {
      Source.fromInputStream(proc.getInputStream).mkString
     
   }
-
+  
+  private[vs] def getPipedRDD(receptorPath: String, method: Int, resolution: Int, sc : SparkContext, rdd : RDD[String] ) ={
+    val dockingstdPath = System.getenv("DOCKING_CPP")
+    sc.addFile(dockingstdPath)
+    sc.addFile(receptorPath)
+    val receptorFileName = Paths.get(receptorPath).getFileName.toString
+    val dockingstdFileName = Paths.get(dockingstdPath).getFileName.toString
+    val pipedRDD = rdd.map { sdf =>
+      ConformerPipeline.pipeString(sdf,
+        List(SparkFiles.get(dockingstdFileName),
+          method.toString(),
+          resolution.toString(),
+          SparkFiles.get(receptorFileName)))
+    }
+    pipedRDD
+  }
+  
   private def SdfStringToIAtomContainer(sdfRecord: String) = {
     //get SDF as input stream
     val sdfByteArray = sdfRecord
@@ -114,22 +136,9 @@ object ConformerPipeline {
 private[vs] class ConformerPipeline(override val rdd: RDD[String])
     extends SBVSPipeline(rdd) with ConformerTransforms {
 
-  override def dock(receptorPath: String, method: Int, resolution: Int) = {
-    val dockingstdPath = System.getenv("DOCKING_CPP")
-    sc.addFile(dockingstdPath)
-    sc.addFile(receptorPath)
-    val receptorFileName = Paths.get(receptorPath).getFileName.toString
-    val dockingstdFileName = Paths.get(dockingstdPath).getFileName.toString
-    val pipedRDD = rdd.map { sdf =>
-      ConformerPipeline.pipeString(sdf,
-        List(SparkFiles.get(dockingstdFileName),
-          method.toString(),
-          resolution.toString(),
-          SparkFiles.get(receptorFileName)))
-    }
-
+   override def dock(receptorPath: String, method: Int, resolution: Int) = {
+    val pipedRDD = ConformerPipeline.getPipedRDD(receptorPath, method, resolution, sc, rdd)
     val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
-    
     new PosePipeline(res)
   }
 

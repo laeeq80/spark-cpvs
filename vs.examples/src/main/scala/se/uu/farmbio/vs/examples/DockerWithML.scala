@@ -70,7 +70,7 @@ object DockerWithML extends Logging {
       .sortByScore
       .getMolecules
       .take(10)
-     
+    
     val pw = new PrintWriter(params.signatureOutputFile)
     signatures.foreach(pw.println(_))
     pw.close
