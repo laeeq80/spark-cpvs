@@ -13,17 +13,23 @@ import scala.collection.JavaConverters.seqAsJavaListConverter
 
 
 trait ConformersWithSignsTransforms {
-  def dockWithML(receptorPath: String, method: Int, resolution: Int): SBVSPipeline with PosePipeline
+  def dockWithML(receptorPath: String, method: Int, resolution: Int): SBVSPipeline
 }
 
 private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     extends SBVSPipeline(rdd) with ConformersWithSignsTransforms{
       
  override def dockWithML(receptorPath: String, method: Int, resolution: Int) = {
-    val pipedRDD = ConformerPipeline.getPipedRDD(receptorPath, method, resolution, sc, rdd)
-    val res = pipedRDD.map(_.trim).filter(_.nonEmpty) //removes empty molecule caused by oechem optimization problem       
-    new PosePipeline(res)
+    //We need to dock some percent of the whole dataset to get idea of good molecules
+    val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, rdd)
     
+    //removes empty molecule caused by oechem optimization problem
+    val cleanedRDD = pipedRDD.map(_.trim).filter(_.nonEmpty)        
+    val poseRDD = new PosePipeline(cleanedRDD)
+    val sortedRDD = poseRDD.sortByScore
+    //Labeling
+    //Training
+    //Prediction
   }
 
   

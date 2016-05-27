@@ -60,7 +60,7 @@ object ConformerPipeline {
     
   }
   
-  private[vs] def getPipedRDD(receptorPath: String, method: Int, resolution: Int, sc : SparkContext, rdd : RDD[String] ) ={
+  private[vs] def getDockingRDD(receptorPath: String, method: Int, resolution: Int, sc : SparkContext, rdd : RDD[String] ) ={
     val dockingstdPath = System.getenv("DOCKING_CPP")
     sc.addFile(dockingstdPath)
     sc.addFile(receptorPath)
@@ -137,7 +137,7 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
     extends SBVSPipeline(rdd) with ConformerTransforms {
 
    override def dock(receptorPath: String, method: Int, resolution: Int) = {
-    val pipedRDD = ConformerPipeline.getPipedRDD(receptorPath, method, resolution, sc, rdd)
+    val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, rdd)
     val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
     new PosePipeline(res)
   }
