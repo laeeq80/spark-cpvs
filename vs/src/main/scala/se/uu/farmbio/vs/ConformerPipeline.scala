@@ -6,9 +6,6 @@ import java.io.StringWriter
 import java.nio.charset.Charset
 import java.nio.file.Paths
 
-import org.openscience.cdk.io.SDFWriter
-import org.openscience.cdk.silent.ChemFile
-
 import scala.io.Source
 import scala.collection.JavaConverters.seqAsJavaListConverter
 
@@ -20,6 +17,8 @@ import org.apache.spark.SparkContext
 import org.openscience.cdk.io.MDLV2000Reader
 import org.openscience.cdk.interfaces.IAtomContainer
 import org.openscience.cdk.tools.manipulator.ChemFileManipulator
+import org.openscience.cdk.io.SDFWriter
+import org.openscience.cdk.silent.ChemFile
 
 import se.uu.farmbio.sg.SGUtils
 
