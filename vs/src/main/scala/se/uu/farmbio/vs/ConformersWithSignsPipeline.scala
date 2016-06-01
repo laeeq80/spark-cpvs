@@ -44,22 +44,28 @@ object ConformersWithSignsPipeline {
     val strWriter = new StringWriter()
     val writer = new SDFWriter(strWriter)
   
-    
+    var MolPercent: Double = 0.0
     //mols is a Java list :-(
     val it = mols.iterator
-
+    if (positiveMolPercent <= 0.0 || positiveMolPercent > 0.5 ) 
+        MolPercent = 0.5
+    else
+        MolPercent = positiveMolPercent
+      
     while (it.hasNext()) {
       //for each molecule in the record compute the signature
 
       val mol = it.next
-      val positiveCount = molCount * positiveMolPercent
+      val positiveCount = molCount * MolPercent
+      val negativeCount = molCount - positiveCount
       val label = index.toDouble match { //convert labels
         case x if x <= round(positiveCount) => 1.0
-        case _                              => 0.0
+        case x if x > round (negativeCount) => 0.0
+        case _                              => "NAN"
       }
 
       mol.removeProperty("cdk:Remark")
-      mol.setProperty("Label", label.toDouble)
+      mol.setProperty("Label", label)
       writer.write(mol)
 
     }
@@ -82,16 +88,20 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     
     //removes empty molecule caused by oechem optimization problem
     val cleanedRDD = pipedRDD.map(_.trim).filter(_.nonEmpty)        
+        
     val poseRDD = new PosePipeline(cleanedRDD)
     val sortedRDD = poseRDD.sortByScore.getMolecules
     
     val molsCount = sortedRDD.count()
     val molsWithIndex = sortedRDD.zipWithIndex()
     
-    //compute Lables based on percent 0.5 means top 50 percent will be marked as 1.0
+    //compute Lables based on percent 
+    //0.3 means top 30 percent will be marked as 1.0 and last 30 as 0.0
+    //Must not give a value over 0.5 or (less or equal to 0.0), 
+    //if so it will be considered 0.5
     val molsAfterLabeling = molsWithIndex.map{
        case(mol, index) => ConformersWithSignsPipeline
-      .writeLables(mol,index + 1,molsCount,0.45)
+       .writeLables(mol,index + 1,molsCount,0.6) 
       }.cache
     new PosePipeline(molsAfterLabeling)
     //Training
