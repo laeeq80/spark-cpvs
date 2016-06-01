@@ -101,7 +101,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     //if so it will be considered 0.5
     val molsAfterLabeling = molsWithIndex.map{
        case(mol, index) => ConformersWithSignsPipeline
-       .writeLables(mol,index + 1,molsCount,0.6) 
+       .writeLables(mol,index + 1,molsCount,0.3) 
       }.cache
     new PosePipeline(molsAfterLabeling)
     //Training
