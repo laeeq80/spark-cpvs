@@ -67,9 +67,8 @@ object DockerWithML extends Logging {
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard) 
-      .sortByScore
       .getMolecules
-      .take(10)
+      .take(18)
     
     val pw = new PrintWriter(params.signatureOutputFile)
     signatures.foreach(pw.println(_))
