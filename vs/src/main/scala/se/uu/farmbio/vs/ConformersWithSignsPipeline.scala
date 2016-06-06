@@ -1,7 +1,15 @@
 package se.uu.farmbio.vs
 
+import se.uu.farmbio.cp.AggregatedICPClassifier
+import se.uu.farmbio.cp.BinaryClassificationICPMetrics
+import se.uu.farmbio.cp.ICP
+
+import se.uu.farmbio.cp.ICPClassifierModel
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkFiles
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.linalg.Vectors
 import org.apache.commons.lang.NotImplementedException
 
 import java.lang.Exception
@@ -25,13 +33,18 @@ import se.uu.farmbio.sg.SGUtils
 import se.uu.farmbio.sg.types.SignatureRecordDecision
 
 
+
 trait ConformersWithSignsTransforms {
   def dockWithML(receptorPath: String, method: Int, resolution: Int): SBVSPipeline
 }
 
 object ConformersWithSignsPipeline {
   
-  private def writeLables = (poses: String, index: Long, molCount: Long, positiveMolPercent: Double) => {
+  private def writeLables = (
+      poses: String, 
+      index: Long, 
+      molCount: Long, 
+      positiveMolPercent: Double) => {
     //get SDF as input stream
     val sdfByteArray = poses
       .getBytes(Charset.forName("UTF-8"))
@@ -44,19 +57,19 @@ object ConformersWithSignsPipeline {
     val strWriter = new StringWriter()
     val writer = new SDFWriter(strWriter)
   
-    var MolPercent: Double = 0.0
+    var molPercent: Double = 0.0
     //mols is a Java list :-(
     val it = mols.iterator
     if (positiveMolPercent <= 0.0 || positiveMolPercent > 0.5 ) 
-        MolPercent = 0.5
+        molPercent = 0.5
     else
-        MolPercent = positiveMolPercent
+        molPercent = positiveMolPercent
       
     while (it.hasNext()) {
       //for each molecule in the record compute the signature
 
       val mol = it.next
-      val positiveCount = molCount * MolPercent
+      val positiveCount = molCount * molPercent
       val negativeCount = molCount - positiveCount
       val label = index.toDouble match { //convert labels
         case x if x <= round(positiveCount) => 1.0
@@ -64,15 +77,20 @@ object ConformersWithSignsPipeline {
         case _                              => "NAN"
       }
 
-      mol.removeProperty("cdk:Remark")
-      mol.setProperty("Label", label)
-      writer.write(mol)
-
+      if (label == 0.0 || label == 1.0)
+      {
+        mol.removeProperty("cdk:Remark")
+        mol.setProperty("Label", label)
+        writer.write(mol)
+      }
     }
     writer.close
     reader.close
     strWriter.toString() //return the molecule
   }
+  
+  //private def getLabeledPointRDD
+     
 }
   
 private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
@@ -92,17 +110,23 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     val poseRDD = new PosePipeline(cleanedRDD)
     val sortedRDD = poseRDD.sortByScore.getMolecules
     
-    val molsCount = sortedRDD.count()
+    //We need these two for the coming up method call
+    val molsCount = sortedRDD.count() 
     val molsWithIndex = sortedRDD.zipWithIndex()
     
     //compute Lables based on percent 
     //0.3 means top 30 percent will be marked as 1.0 and last 30 as 0.0
     //Must not give a value over 0.5 or (less or equal to 0.0), 
     //if so it will be considered 0.5
+    //Also performs Molecule filtering. Molecules labeled either 1.0 or 0.0 are retained 
     val molsAfterLabeling = molsWithIndex.map{
        case(mol, index) => ConformersWithSignsPipeline
        .writeLables(mol,index + 1,molsCount,0.3) 
-      }.cache
+      }.map(_.trim).filter(_.nonEmpty)
+          
+      
+    //Converting SDF Sign+label to LabeledPoint required for cp  
+    //val labeledPoint = new LabeledPoint(label,Vectors.parse(signatureString))
     new PosePipeline(molsAfterLabeling)
     //Training
     //Prediction
