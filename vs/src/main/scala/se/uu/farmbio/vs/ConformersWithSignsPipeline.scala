@@ -1,10 +1,10 @@
 package se.uu.farmbio.vs
 
+import se.uu.farmbio.cp.ICPClassifierModel
 import se.uu.farmbio.cp.AggregatedICPClassifier
 import se.uu.farmbio.cp.BinaryClassificationICPMetrics
 import se.uu.farmbio.cp.ICP
-
-import se.uu.farmbio.cp.ICPClassifierModel
+import se.uu.farmbio.cp.alg.SVM
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkFiles
@@ -40,11 +40,11 @@ trait ConformersWithSignsTransforms {
 
 object ConformersWithSignsPipeline {
   
-  private def writeLables = (
+  private def writeLables(
       poses: String, 
       index: Long, 
       molCount: Long, 
-      positiveMolPercent: Double) => {
+      positiveMolPercent: Double) = {
     //get SDF as input stream
     val sdfByteArray = poses
       .getBytes(Charset.forName("UTF-8"))
@@ -89,7 +89,33 @@ object ConformersWithSignsPipeline {
     strWriter.toString() //return the molecule
   }
   
-  //private def getLabeledPointRDD
+  private def getLPRDD (poses: String) = {
+    //get SDF as input stream
+    val sdfByteArray = poses
+      .getBytes(Charset.forName("UTF-8"))
+    val sdfIS = new ByteArrayInputStream(sdfByteArray)
+    //Parse SDF
+    val reader = new MDLV2000Reader(sdfIS)
+    val chemFile = reader.read(new ChemFile)
+    val mols = ChemFileManipulator.getAllAtomContainers(chemFile)
+       
+    //mols is a Java list :-(
+    val it = mols.iterator
+   
+    var res = Seq[(LabeledPoint)]()
+    
+    while (it.hasNext()) {
+      //for each molecule in the record compute the signature
+
+      val mol = it.next
+      val label : String = mol.getProperty("Label")
+      val doubleLabel : Double = label.toDouble
+      val labeledPoint = new LabeledPoint(doubleLabel,Vectors.parse(mol.getProperty("Signature")))
+      res = res ++ Seq(labeledPoint)
+    }
+
+    res //return the labeledPoint
+  }
      
 }
   
@@ -123,13 +149,30 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
        case(mol, index) => ConformersWithSignsPipeline
        .writeLables(mol,index + 1,molsCount,0.3) 
       }.map(_.trim).filter(_.nonEmpty)
-          
       
-    //Converting SDF Sign+label to LabeledPoint required for cp  
-    //val labeledPoint = new LabeledPoint(label,Vectors.parse(signatureString))
+    //Converting SDF Sign+label to LabeledPoint required for cp
+    val lpRDD = molsAfterLabeling.flatMap{
+        sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
+      }
+      
+    //Training initializations
+    val numOfICPs = 100
+    val calibrationSize = 5
+    val numIterations = 5
+    //Train icps
+    val icps = (1 to numOfICPs).map { _ =>
+      val (calibration, properTraining) =
+        ICP.calibrationSplit(lpRDD, calibrationSize)
+      //Train ICP
+      val svm = new SVM(properTraining.cache, numIterations)
+      ICP.trainClassifier(svm, numClasses = 2, calibration)
+    }      
+    
+    //Prediction  
+          
     new PosePipeline(molsAfterLabeling)
-    //Training
-    //Prediction
+    
+    
   }
 
   
