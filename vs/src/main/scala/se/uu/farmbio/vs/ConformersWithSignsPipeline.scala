@@ -124,19 +124,22 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       
  override def dockWithML(receptorPath: String, method: Int, resolution: Int) = {
     //We need to dock some percent of the whole dataset to get idea of good molecules
-    val Array(dsInit,remaining) = rdd.randomSplit(Array(1.0,0.0), 1234)
-    val cachedRem = remaining.cache()
+    //Step 1 and 2
+    val Array(dsInit,dsBag) = rdd.randomSplit(Array(1.0,0.0), 1234)
+    val cachedDsBag = dsBag.cache()
     
+    //Step 3
     //Docking the small dataset
     val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsInit)
     
     //removes empty molecule caused by oechem optimization problem
     val cleanedRDD = pipedRDD.map(_.trim).filter(_.nonEmpty)        
-        
+    
+    
     val poseRDD = new PosePipeline(cleanedRDD)
     val sortedRDD = poseRDD.sortByScore.getMolecules
     
-    //We need these two for the coming up method call
+    //We need these two lines for the calculating the label
     val molsCount = sortedRDD.count() 
     val molsWithIndex = sortedRDD.zipWithIndex()
     
@@ -147,7 +150,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     //Also performs Molecule filtering. Molecules labeled either 1.0 or 0.0 are retained 
     val molsAfterLabeling = molsWithIndex.map{
        case(mol, index) => ConformersWithSignsPipeline
-       .writeLables(mol,index + 1,molsCount,0.3) 
+       .writeLables(mol,index + 1,molsCount,0.1) 
       }.map(_.trim).filter(_.nonEmpty)
       
     //Converting SDF Sign+label to LabeledPoint required for cp
