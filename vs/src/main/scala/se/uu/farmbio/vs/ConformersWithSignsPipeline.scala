@@ -123,17 +123,25 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     extends SBVSPipeline(rdd) with ConformersWithSignsTransforms{
       
  override def dockWithML(receptorPath: String, method: Int, resolution: Int) = {
-    //We need to dock some percent of the whole dataset to get idea of good molecules
+    //initializations
+    var poses : RDD[String] = null
+    var dsTrain : RDD[String] = null
+   
     //Step 1 and 2
-    val Array(dsInit,dsBag) = rdd.randomSplit(Array(1.0,0.0), 1234)
+    //Get a sample of the data
+    val Array(dsInit,dsBag) = rdd.randomSplit(Array(0.1,0.9), 1234)
     val cachedDsBag = dsBag.cache()
     
     //Step 3
     //Docking the small dataset
     val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsInit)
     
-    //removes empty molecule caused by oechem optimization problem
+    //Removing empty molecules caused by oechem optimization problem
     val cleanedRDD = pipedRDD.map(_.trim).filter(_.nonEmpty)        
+    
+    //Step 4
+    //Keeping processed poses
+    poses = poses.union(cleanedRDD)
     
     
     val poseRDD = new PosePipeline(cleanedRDD)
