@@ -153,10 +153,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val molsWithIndex = sortedRDD.zipWithIndex()
 
       //Compute Lables based on percent 
-      //0.3 means top 30 percent will be marked as 1.0 and last 30 as 0.0
+      //0.3 means top 30 percent will be marked as 1.0 and last 30 percent as 0.0
       //Must not give a value over 0.5 or (less or equal to 0.0), 
       //if so it will be considered 0.5
-      //Also performs Molecule filtering. Molecules labeled either 1.0 or 0.0 are retained 
+      //Also performs Molecule filtering. Molecules labeled either 1.0 or 0.0 are retained
+      //Undecided ones are removed
       val dsTopAndBottom = molsWithIndex.map {
         case (mol, index) => ConformersWithSignsPipeline
           .writeLables(mol, index + 1, molsCount, 0.1)
@@ -165,11 +166,12 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 7 Union dsTrain and dsTopAndBottom
       dsTrain = dsTrain.union(dsTopAndBottom)
       
-      //Converting SDF Sign+label to LabeledPoint required for cp
-      val lpRDD = dsTopAndBottom.flatMap {
+      //Converting SDF Sign+label to LabeledPoint required for conformal prediction
+      val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
       }
       
+      //Step 8 Training
       //Training initializations
       val numOfICPs = 5
       val calibrationSize = 10
@@ -177,13 +179,13 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Train icps
       val icps = (1 to numOfICPs).map { _ =>
         val (calibration, properTraining) =
-          ICP.calibrationSplit(lpRDD, calibrationSize)
+          ICP.calibrationSplit(lpDsTrain, calibrationSize)
         //Train ICP
         val svm = new SVM(properTraining.cache, numIterations)
         ICP.trainClassifier(svm, numClasses = 2, calibration)
       }
 
-      //Prediction
+      //Step 9 Test and Prediction on ds
 
       // do loop execution
 
