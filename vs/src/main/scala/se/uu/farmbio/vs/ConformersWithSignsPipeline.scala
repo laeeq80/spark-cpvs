@@ -9,7 +9,7 @@ import se.uu.farmbio.cp.alg.SVM
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkFiles
 import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.commons.lang.NotImplementedException
 
 import java.lang.Exception
@@ -114,6 +114,31 @@ object ConformersWithSignsPipeline {
     res //return the labeledPoint
   }
 
+  private def getFeatureVector(poses: String) = {
+    //get SDF as input stream
+    val sdfByteArray = poses
+      .getBytes(Charset.forName("UTF-8"))
+    val sdfIS = new ByteArrayInputStream(sdfByteArray)
+    //Parse SDF
+    val reader = new MDLV2000Reader(sdfIS)
+    val chemFile = reader.read(new ChemFile)
+    val mols = ChemFileManipulator.getAllAtomContainers(chemFile)
+
+    //mols is a Java list :-(
+    val it = mols.iterator
+
+    var res = Seq[(Vector)]()
+
+    while (it.hasNext()) {
+      //for each molecule in the record compute the FeatureVector
+      val mol = it.next
+      val Vector = Vectors.parse(mol.getProperty("Signature"))
+      res = res ++ Seq(Vector)
+    }
+
+    res //return the FeatureVector
+  }
+
 }
 
 private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
@@ -124,74 +149,102 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var ds: RDD[String] = rdd.cache()
-    do {
-      //Step 1
-      //Get a sample of the data
-      val dsInit = ds.sample(false, 0.1, 1234)
+    //do {
+    //Step 1
+    //Get a sample of the data
+    val dsInit = ds.sample(false, 0.1, 1234)
 
-      //Step 2
-      //Subtract the sampled molecules from main dataset
-      ds = ds.subtract(dsInit)
+    //Step 2
+    //Subtract the sampled molecules from main dataset
+    ds = ds.subtract(dsInit)
 
-      //Step 3
-      //Docking the sampled dataset
-      val dsDock = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsInit)
+    //Step 3
+    //Docking the sampled dataset
+    val dsDock = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsInit)
+    //Removing empty molecules caused by oechem optimization problem
+    val cleanedDsDock = dsDock.map(_.trim).filter(_.nonEmpty)
 
-      //Removing empty molecules caused by oechem optimization problem
-      val cleanedDsDock = dsDock.map(_.trim).filter(_.nonEmpty)
-
-      //Step 4
-      //Keeping processed poses
+    //Step 4
+    //Keeping processed poses
+    if (poses == null)
+      poses = cleanedDsDock
+    else
       poses = poses.union(cleanedDsDock)
 
-      val poseRDD = new PosePipeline(cleanedDsDock)
-      val sortedRDD = poseRDD.sortByScore.getMolecules
+    val poseRDD = new PosePipeline(cleanedDsDock)
+    val sortedRDD = poseRDD.sortByScore.getMolecules
 
-      //Step 5 and 6 Computing dsTopAndBottom
-      //We need these two lines for calculating the labels
-      val molsCount = sortedRDD.count()
-      val molsWithIndex = sortedRDD.zipWithIndex()
+    //Step 5 and 6 Computing dsTopAndBottom
+    //We need these two lines for calculating the labels
+    val molsCount = sortedRDD.count()
+    val molsWithIndex = sortedRDD.zipWithIndex()
 
-      //Compute Lables based on percent 
-      //0.3 means top 30 percent will be marked as 1.0 and last 30 percent as 0.0
-      //Must not give a value over 0.5 or (less or equal to 0.0), 
-      //if so it will be considered 0.5
-      //Also performs Molecule filtering. Molecules labeled either 1.0 or 0.0 are retained
-      //Undecided ones are removed
-      val dsTopAndBottom = molsWithIndex.map {
-        case (mol, index) => ConformersWithSignsPipeline
-          .writeLables(mol, index + 1, molsCount, 0.1)
-      }.map(_.trim).filter(_.nonEmpty)
+    //Compute Lables based on percent 
+    //0.3 means top 30 percent will be marked as 1.0 and last 30 percent as 0.0
+    //Must not give a value over 0.5 or (less or equal to 0.0), 
+    //if so it will be considered 0.5
+    //Also performs Molecule filtering. Molecules labeled either 1.0 or 0.0 are retained
+    //Undecided ones are removed
+    val dsTopAndBottom = molsWithIndex.map {
+      case (mol, index) => ConformersWithSignsPipeline
+        .writeLables(mol, index + 1, molsCount, 0.3)
+    }.map(_.trim).filter(_.nonEmpty)
 
-      //Step 7 Union dsTrain and dsTopAndBottom
+    //Step 7 Union dsTrain and dsTopAndBottom
+    if (dsTrain == null)
+      dsTrain = dsTopAndBottom
+    else
       dsTrain = dsTrain.union(dsTopAndBottom)
-      
-      //Converting SDF Sign+label to LabeledPoint required for conformal prediction
-      val lpDsTrain = dsTrain.flatMap {
-        sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
-      }
-      
-      //Step 8 Training
-      //Training initializations
-      val numOfICPs = 5
-      val calibrationSize = 10
-      val numIterations = 10
-      //Train icps
-      val icps = (1 to numOfICPs).map { _ =>
-        val (calibration, properTraining) =
-          ICP.calibrationSplit(lpDsTrain, calibrationSize)
-        //Train ICP
-        val svm = new SVM(properTraining.cache, numIterations)
-        ICP.trainClassifier(svm, numClasses = 2, calibration)
-      }
 
-      //Step 9 Test and Prediction on ds
+    //Converting SDF training set to LabeledPoint required for conformal prediction
+    val lpDsTrain = dsTrain.flatMap {
+      sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
+    }
 
-      // do loop execution
+    //Step 8 Training
+    //Training initializations
+    val numOfICPs = 5
+    val calibrationSize = 10
+    val numIterations = 10
+    //Train icps
+    val t0 = System.currentTimeMillis
+    val icps = (1 to numOfICPs).map { _ =>
+      val (calibration, properTraining) =
+        ICP.calibrationSplit(lpDsTrain, calibrationSize)
+      //Train ICP
+      val svm = new SVM(properTraining.cache, numIterations)
+      ICP.trainClassifier(svm, numClasses = 2, calibration)
+    }
+    val t1 = System.currentTimeMillis
 
-    } while (!(ds.isEmpty()))
+    //SVM based Aggregated ICP Classifier (our model)
+    val icp = new AggregatedICPClassifier(icps)
 
-    new PosePipeline(poses)
+    //Converting SDF main dataset (ds) to feature vector required for conformal prediction
+    //We also need to keep intact the poses so at the end we know
+    //which molecules are predicted as bad and remove them from main set
+
+    val fvDs = ds.flatMap {
+      sdfmol =>
+        ConformersWithSignsPipeline.getFeatureVector(sdfmol)
+          .map { case (vector) => (sdfmol, vector) }
+    }
+
+    //Step 9 Prediction using our model
+    val predictions = fvDs.map {
+      case (sdfmol, predictionData) =>
+        (sdfmol, icp.predict(predictionData, 0.2))
+    }
+
+    // Step 10 Computing and Removing bad molecules from main dataset
+    var dsZero: RDD[(String)] = predictions
+      .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
+      .map { case (sdfmol, prediction) => sdfmol }
+    ds = ds.subtract(dsZero)
+
+    //} while (!(ds.isEmpty()))
+
+    new PosePipeline(sortedRDD)
 
   }
 
