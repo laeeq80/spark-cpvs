@@ -21,8 +21,7 @@ object DockerWithML extends Logging {
     master: String = null,
     conformersFile: String = null,
     signatureOutputFile: String = null,
-    receptorFile : String = null  
-  )
+    receptorFile: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -35,7 +34,7 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
-       arg[String]("<receptor-file>")
+      arg[String]("<receptor-file>")
         .required()
         .text("path to input OEB receptor file")
         .action((x, c) => c.copy(receptorFile = x))
@@ -63,17 +62,21 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-       val signatures = new SBVSPipeline(sc)
+    val t0 = System.currentTimeMillis
+    val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures()
-      .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard) 
+      .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
+      .sortByScore
       .getMolecules
-      .take(18)
-    
+      .take(10)
+    val t1 = System.currentTimeMillis
+    println(s"This example took: ${t1 - t0} millisec.")
+
     val pw = new PrintWriter(params.signatureOutputFile)
     signatures.foreach(pw.println(_))
     pw.close
-   
+
     sc.stop()
 
   }
