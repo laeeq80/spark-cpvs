@@ -149,12 +149,14 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var ds: RDD[String] = rdd.cache()
-
+    var previousDS : RDD[String] = null
     do {
       //Step 1
       //Get a sample of the data
+      previousDS = ds
       val dsInit = ds.sample(false, 0.1, 1234)
-
+      //val dsInit = ds.takeSample(false, 100, 1234)
+      
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -163,16 +165,16 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Docking the sampled dataset
       val dsDock = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsInit)
       //Removing empty molecules caused by oechem optimization problem
-      val cleanedDsDock = dsDock.map(_.trim).filter(_.nonEmpty)
+      .map(_.trim).filter(_.nonEmpty)
 
       //Step 4
       //Keeping processed poses
       if (poses == null)
-        poses = cleanedDsDock
+        poses = dsDock
       else
-        poses = poses.union(cleanedDsDock)
+        poses = poses.union(dsDock)
 
-      val poseRDD = new PosePipeline(cleanedDsDock)
+      val poseRDD = new PosePipeline(dsDock)
       val sortedRDD = poseRDD.sortByScore.getMolecules
 
       //Step 5 and 6 Computing dsTopAndBottom
@@ -204,7 +206,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 8 Training
       //Training initializations
-      val numOfICPs = 4
+      val numOfICPs = 5
       val calibrationSize = 10
       val numIterations = 10
       //Train icps
@@ -240,11 +242,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       var dsZero: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
-
+      val dsZeroCount = dsZero.count()  
       ds = ds.subtract(dsZero)
-
-    } while (!(ds.isEmpty()))
-
+     
+    //} while (!(ds.isEmpty()))
+    } while((previousDS.count() != ds.count()) && !(ds.isEmpty()))
     new PosePipeline(poses)
 
   }
