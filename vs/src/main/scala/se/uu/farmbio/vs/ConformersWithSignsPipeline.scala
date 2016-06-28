@@ -149,17 +149,19 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var ds: RDD[String] = rdd.cache()
-    var previousDS : RDD[String] = null
-    var divider : Double = 1000 
+    var previousDS: RDD[String] = null
+    var divider: Double = 1000
+
     do {
       //Step 1
       //Get a sample of the data
       previousDS = ds.cache
-      
-      val dsInit = ds.sample(false, 100/divider, 1234)
-      if (divider > 100)
-      divider = divider - 100
-      
+      val dsInit = ds.sample(false, 100 / divider, 1234)
+
+      if (divider > 100) {
+        divider = divider - 100
+      }
+
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -167,8 +169,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsInit)
-      //Removing empty molecules caused by oechem optimization problem
-      .map(_.trim).filter(_.nonEmpty)
+        //Removing empty molecules caused by oechem optimization problem
+        .map(_.trim).filter(_.nonEmpty)
 
       //Step 4
       //Keeping processed poses
@@ -181,6 +183,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //We need these two lines for calculating the labels
       val poseRDD = new PosePipeline(dsDock)
       val sortedRDD = poseRDD.sortByScore.getMolecules
+
       val molsCount = sortedRDD.count()
       val molsWithIndex = sortedRDD.zipWithIndex()
 
@@ -209,8 +212,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 8 Training
       //Training initializations
       val numOfICPs = 5
-      val calibrationSize = 50
-      val numIterations = 15
+      val calibrationSize = 10
+      val numIterations = 10
       //Train icps
 
       val icps = (1 to numOfICPs).map { _ =>
@@ -244,11 +247,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       var dsZero: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
-       
+
       ds = ds.subtract(dsZero).cache
-      
-    //} while (!(ds.isEmpty()))
-    } while((previousDS.count() != ds.count()) && !(ds.isEmpty()))
+
+      //} while (!(ds.isEmpty()))
+    } while ((previousDS.count() != ds.count()) && !(ds.isEmpty()))
     new PosePipeline(poses)
 
   }
