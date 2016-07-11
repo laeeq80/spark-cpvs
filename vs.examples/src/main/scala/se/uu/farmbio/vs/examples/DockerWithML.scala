@@ -71,7 +71,7 @@ object DockerWithML extends Logging {
       .getMolecules
       .take(10)
     val t1 = System.currentTimeMillis
-    println(s"This example took: ${t1 - t0} millisec.")
+    println(s"DockWithML took: ${t1 - t0} millisec.")
 
     val pw = new PrintWriter(params.signatureOutputFile)
     signatures.foreach(pw.println(_))
