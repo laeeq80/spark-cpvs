@@ -13,19 +13,21 @@ import org.apache.spark.SparkFiles
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.SparkContext._
+import org.apache.spark.SparkContext
+import org.apache.spark.Logging
 
 import org.openscience.cdk.io.SDFWriter
 import org.openscience.cdk.interfaces.IAtomContainer
 
 trait ConformerTransforms {
-  val DOCKING_CPP_URL = "http://pele.farmbio.uu.se/spark-vs/dockingstd"
+
   def dock(receptorPath: String, method: Int, resolution: Int): SBVSPipeline with PoseTransforms
   def repartition: SBVSPipeline with ConformerTransforms
   def generateSignatures(): SBVSPipeline with ConformersWithSignsTransforms
 }
 
-object ConformerPipeline {
-
+object ConformerPipeline extends Logging {
+  val DOCKING_CPP_URL = "http://pele.farmbio.uu.se/spark-vs/dockingstd"
   //The Spark built-in pipe splits molecules line by line, we need a custom one
   private[vs] def pipeString(str: String, command: List[String]) = {
 
@@ -51,6 +53,30 @@ object ConformerPipeline {
     //Return results as a single string
     Source.fromInputStream(proc.getInputStream).mkString
 
+  }
+
+  private[vs] def getDockingRDD(receptorPath: String, method: Int, resolution: Int, sc: SparkContext, rdd: RDD[String]) = {
+    //Use local CPP if DOCKING_CPP is set
+    val dockingstdPath = if (System.getenv("DOCKING_CPP") != null) {
+      logInfo("using local dockingstd: " + System.getenv("DOCKING_CPP"))
+      System.getenv("DOCKING_CPP")
+    } else {
+      logInfo("using remote dockingstd: " + DOCKING_CPP_URL)
+      DOCKING_CPP_URL
+    }
+
+    sc.addFile(dockingstdPath)
+    sc.addFile(receptorPath)
+    val receptorFileName = Paths.get(receptorPath).getFileName.toString
+    val dockingstdFileName = Paths.get(dockingstdPath).getFileName.toString
+    val pipedRDD = rdd.map { sdf =>
+      ConformerPipeline.pipeString(sdf,
+        List(SparkFiles.get(dockingstdFileName),
+          method.toString(),
+          resolution.toString(),
+          SparkFiles.get(receptorFileName)))
+    }
+    pipedRDD
   }
 
   private def sdfStringToIAtomContainer(sdfRecord: String) = {
@@ -87,27 +113,7 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
 
   override def dock(receptorPath: String, method: Int, resolution: Int) = {
 
-    //Use local CPP if DOCKING_CPP is set
-    val dockingstdPath = if (System.getenv("DOCKING_CPP") != null) {
-      logInfo("using local dockingstd: " + System.getenv("DOCKING_CPP"))
-      System.getenv("DOCKING_CPP")
-    } else {
-      logInfo("using remote dockingstd: " + DOCKING_CPP_URL)
-      DOCKING_CPP_URL
-    }
-
-    sc.addFile(dockingstdPath)
-    sc.addFile(receptorPath)
-    val receptorFileName = Paths.get(receptorPath).getFileName.toString
-    val dockingstdFileName = Paths.get(dockingstdPath).getFileName.toString
-    val pipedRDD = rdd.map { sdf =>
-      ConformerPipeline.pipeString(sdf,
-        List(SparkFiles.get(dockingstdFileName),
-          method.toString(),
-          resolution.toString(),
-          SparkFiles.get(receptorFileName)))
-    }
-
+    val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, rdd)
     val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
     new PosePipeline(res, method)
   }
