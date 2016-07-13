@@ -127,7 +127,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 1
       //Get a sample of the data
       previousDS = ds.cache
-      val dsInit = ds.sample(false, 0.1, 1234)
+      val dsInit = ds.sample(false, 100/divider, 1234)
 
       if (divider > 100) {
         divider = divider - 100
@@ -213,11 +213,10 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         case (sdfmol, predictionData) =>
           (sdfmol, icp.predict(predictionData, 0.2))
       }
-
       // Step 10 Computing and Removing bad molecules from main dataset
       var dsZero: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
-        .map { case (sdfmol, prediction) => sdfmol }
+        .map { case (sdfmol, prediction) => sdfmol }  
 
       ds = ds.subtract(dsZero).cache
 
