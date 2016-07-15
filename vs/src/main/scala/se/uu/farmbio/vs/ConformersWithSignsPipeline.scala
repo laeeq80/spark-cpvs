@@ -122,15 +122,18 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var ds: RDD[String] = rdd.cache()
     var previousDS: RDD[String] = null
     var divider: Double = 1000
+    var counter: Int = 1
+    var calibrationSize : Int = 0
 
     do {
       //Step 1
       //Get a sample of the data
       previousDS = ds.cache
-      val dsInit = ds.sample(false, 100/divider, 1234)
+      val portion = 200
+      val dsInit = ds.sample(false, portion / divider, 1234)
 
-      if (divider > 100) {
-        divider = divider - 100
+      if (divider > portion) {
+        divider = divider - portion
       }
 
       //Step 2
@@ -182,21 +185,15 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 8 Training
       //Training initializations
-      val numOfICPs = 5
-      val calibrationSize = 10
-      val numIterations = 10
+      calibrationSize = calibrationSize + round(portion * 0.3).toInt 
+      val numIterations = 100
       //Train icps
 
-      val icps = (1 to numOfICPs).map { _ =>
-        val (calibration, properTraining) =
-          ICP.calibrationSplit(lpDsTrain, calibrationSize)
-        //Train ICP
-        val svm = new SVM(properTraining.cache, numIterations)
-        ICP.trainClassifier(svm, numClasses = 2, calibration)
-      }
-
-      //SVM based Aggregated ICP Classifier (our model)
-      val icp = new AggregatedICPClassifier(icps)
+      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain, calibrationSize)
+      //Train ICP
+      val svm = new SVM(properTraining.cache, numIterations)
+      //SVM based ICP Classifier (our model)
+      val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
 
       //Converting SDF main dataset (ds) to feature vector required for conformal prediction
       //We also need to keep intact the poses so at the end we know
@@ -213,13 +210,30 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         case (sdfmol, predictionData) =>
           (sdfmol, icp.predict(predictionData, 0.2))
       }
+
       // Step 10 Computing and Removing bad molecules from main dataset
       var dsZero: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
-        .map { case (sdfmol, prediction) => sdfmol }  
+        .map { case (sdfmol, prediction) => sdfmol }
+      var dsOne: RDD[(String)] = predictions
+        .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
+        .map { case (sdfmol, prediction) => sdfmol }
+      var dsUnknown: RDD[(String)] = predictions
+        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
+        .map { case (sdfmol, prediction) => sdfmol }
+
+      val pw = new PrintWriter("data/dsZero" + counter)
+      pw.println(dsZero.count)
+      pw.close
+      val pw1 = new PrintWriter("data/dsOne" + counter)
+      pw1.println(dsOne.count)
+      pw1.close
+      val pw2 = new PrintWriter("data/dsUnknown" + counter)
+      pw2.println(dsUnknown.count)
+      pw2.close
 
       ds = ds.subtract(dsZero).cache
-
+      counter = counter + 1
       //} while (!(ds.isEmpty()))
     } while ((previousDS.count() != ds.count()) && !(ds.isEmpty()))
     new PosePipeline(poses, method)
