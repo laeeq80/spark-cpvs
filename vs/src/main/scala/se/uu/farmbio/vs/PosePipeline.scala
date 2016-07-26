@@ -2,6 +2,7 @@ package se.uu.farmbio.vs
 
 import scala.io.Source
 import org.apache.spark.rdd.RDD
+import org.apache.spark.Logging
 import openeye.oedocking.OEDockMethod
 import org.apache.log4j.Logger
 
@@ -13,20 +14,8 @@ trait PoseTransforms {
 
 }
 
-private[vs] object PosePipelineLogger {
-  @transient lazy val log = Logger.getLogger(getClass.getName)
-}
-
-private[vs] class PosePipeline(override val rdd: RDD[String], val scoreMethod: Int) extends SBVSPipeline(rdd)
-    with PoseTransforms {
-
-  val methodBroadcast = rdd.sparkContext.broadcast(scoreMethod)
-
-  private def parseId = (pose: String) => {
-    Source.fromString(pose).getLines.next
-  }
-
-  private def parseScore(method: Int) = (pose: String) => {
+object PosePipeline extends Logging {
+  private[vs] def parseScore(method: Int) = (pose: String) => {
     var result: Double = Double.MinValue
     //Sometimes OEChem produce molecules with empty score or malformed molecules
     //We use try catch block for those exceptions
@@ -50,27 +39,36 @@ private[vs] class PosePipeline(override val rdd: RDD[String], val scoreMethod: I
       result = res.toDouble
     } catch {
 
-      case exec: Exception => PosePipelineLogger.log
-        .warn("Setting the score to Double.MinValue." +
-          "It was not possible to parse the score of the following molecule due to \n" + exec +
-          "\n" + exec.getStackTraceString + "\nPose:\n" + pose)
-
+      case exec: Exception => logWarning("Setting the score to Double.MinValue." +
+        "It was not possible to parse the score of the following molecule due to \n" + exec +
+        "\n" + exec.getStackTraceString + "\nPose:\n" + pose)
     }
     result
+  }
+
+  private def parseId = (pose: String) => {
+    Source.fromString(pose).getLines.next
   }
 
   private def collapsePoses(bestN: Int, parseScore: String => Double) = (record: (String, Iterable[String])) => {
     record._2.toList.sortBy(parseScore).reverse.take(bestN)
   }
 
+}
+
+private[vs] class PosePipeline(override val rdd: RDD[String], val scoreMethod: Int) extends SBVSPipeline(rdd)
+    with PoseTransforms {
+
+  val methodBroadcast = rdd.sparkContext.broadcast(scoreMethod)
+
   override def sortByScore = {
-    val res = rdd.sortBy(parseScore(methodBroadcast.value), false)
+    val res = rdd.sortBy(PosePipeline.parseScore(methodBroadcast.value), false)
     new PosePipeline(res, scoreMethod)
   }
 
   override def collapse(bestN: Int) = {
-    val res = rdd.groupBy(parseId)
-      .flatMap(collapsePoses(bestN, parseScore(methodBroadcast.value)))
+    val res = rdd.groupBy(PosePipeline.parseId)
+      .flatMap(PosePipeline.collapsePoses(bestN, PosePipeline.parseScore(methodBroadcast.value)))
     new PosePipeline(res, scoreMethod)
   }
 
