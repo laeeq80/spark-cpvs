@@ -155,16 +155,24 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
       }
-
+      
       //Step 8 Training
       //Training initializations
-      val calibrationSize = 20
-      val numIterations = 100
-      //Train icp
-      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain, calibrationSize)
-      val svm = new SVM(properTraining.cache, numIterations)
-      //SVM based ICP Classifier (our model)
-      val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
+      val numOfICPs = 5
+      val calibrationSize = 10
+      val numIterations = 10
+      //Train icps
+
+      val icps = (1 to numOfICPs).map { _ =>
+        val (calibration, properTraining) =
+          ICP.calibrationSplit(lpDsTrain, calibrationSize)
+        //Train ICP
+        val svm = new SVM(properTraining.cache, numIterations)
+        ICP.trainClassifier(svm, numClasses = 2, calibration)
+      }
+
+      //SVM based Aggregated ICP Classifier (our model)
+      val icp = new AggregatedICPClassifier(icps)
 
       //Converting SDF main dataset (ds) to feature vector required for conformal prediction
       //We also need to keep intact the poses so at the end we know
