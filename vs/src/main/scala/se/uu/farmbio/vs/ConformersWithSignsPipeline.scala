@@ -8,6 +8,7 @@ import se.uu.farmbio.cp.alg.SVM
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkFiles
+import org.apache.spark.SparkContext
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.commons.lang.NotImplementedException
@@ -36,7 +37,7 @@ trait ConformersWithSignsTransforms {
   def dockWithML(receptorPath: String, method: Int, resolution: Int): SBVSPipeline with PoseTransforms
 }
 
-object ConformersWithSignsPipeline {
+object ConformersWithSignsPipeline extends Serializable {
 
   private def getLPRDD(poses: String) = {
     val it = SBVSPipeline.CDKInit(poses)
@@ -78,8 +79,8 @@ object ConformersWithSignsPipeline {
     while (it.hasNext()) {
       val mol = it.next
       val label = score match { //convert labels
-        case x if x >= scoreHistogram(9) && x <= scoreHistogram(10) => 1.0
-        case x if x >= scoreHistogram(0) && x <= scoreHistogram(2) => 0.0
+        case x if x >= scoreHistogram(7) && x <= scoreHistogram(10) => 1.0
+        case x if x >= scoreHistogram(0) && x <= scoreHistogram(5) => 0.0
         case _ => "NAN"
       }
 
@@ -92,6 +93,7 @@ object ConformersWithSignsPipeline {
     writer.close
     strWriter.toString() //return the molecule  
   }
+
 }
 
 private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
@@ -99,11 +101,14 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
   override def dockWithML(receptorPath: String, method: Int, resolution: Int) = {
     //initializations
+
+    val portion = 100
+    var divider: Double = 1000
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
-    var ds: RDD[String] = rdd.cache()
     var previousDS: RDD[String] = null
-    var divider: Double = 1000
+    //val validationDs: RDD[String] = rdd.cache().sample(false, portion / divider, 1234)
+    var ds: RDD[String] = rdd.cache()
     var counter: Int = 1
 
     do {
@@ -111,7 +116,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 1
       //Get a sample of the data
       previousDS = ds.cache
-      val portion = 200
+
       val dsInit = ds.sample(false, portion / divider, 1234)
 
       if (divider > portion) {
@@ -155,12 +160,12 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
       }
-      
+
       //Step 8 Training
       //Training initializations
       val numOfICPs = 5
-      val calibrationSize = 10
-      val numIterations = 10
+      val calibrationSize = 50
+      val numIterations = 50
       //Train icps
 
       val icps = (1 to numOfICPs).map { _ =>
@@ -186,34 +191,50 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 9 Prediction using our model
       val predictions = fvDs.map {
-        case (sdfmol, predictionData) =>
-          (sdfmol, icp.predict(predictionData, 0.2))
+        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
       }
 
-      // Step 10 Computing and Removing bad molecules from main dataset
-      var dsZero: RDD[(String)] = predictions
+      val totalCount = sc.accumulator(0.0)
+      val singletonCount = sc.accumulator(0.0)
+
+      predictions.foreach {
+        case (sdfmol, prediction) =>
+          if (prediction.size == 1) {
+            singletonCount += 1.0
+          }
+          totalCount += 1.0
+      }
+
+      val eff = singletonCount.value / totalCount.value
+
+      val pw = new PrintWriter("data/efficiency" + counter)
+      pw.println(eff)
+      pw.close
+
+      val dsZero: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
-      var dsOne: RDD[(String)] = predictions
+      val dsOne: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
-      var dsUnknown: RDD[(String)] = predictions
+      val dsUnknown: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
 
-      val pw = new PrintWriter("data/dsZero" + counter)
-      pw.println(dsZero.count)
-      pw.close
-      val pw1 = new PrintWriter("data/dsOne" + counter)
-      pw1.println(dsOne.count)
+      val pw1 = new PrintWriter("data/dsZero" + counter)
+      pw1.println(dsZero.count)
       pw1.close
-      val pw2 = new PrintWriter("data/dsUnknown" + counter)
-      pw2.println(dsUnknown.count)
+      val pw2 = new PrintWriter("data/dsOne" + counter)
+      pw2.println(dsOne.count)
       pw2.close
+      val pw3 = new PrintWriter("data/dsUnknown" + counter)
+      pw3.println(dsUnknown.count)
+      pw3.close
 
+      //Step 10 Subtracting {0} moles from dataset
       ds = ds.subtract(dsZero).cache
       counter = counter + 1
-      //} while (!(ds.isEmpty()))
+
     } while ((previousDS.count() != ds.count()) && !(ds.isEmpty()))
     new PosePipeline(poses, method)
 
