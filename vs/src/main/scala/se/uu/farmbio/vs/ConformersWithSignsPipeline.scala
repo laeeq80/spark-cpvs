@@ -106,16 +106,16 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var divider: Double = 1000
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
-    var previousDS: RDD[String] = null
-    //val validationDs: RDD[String] = rdd.cache().sample(false, portion / divider, 1234)
+    var dsOne: RDD[(String)] = null
     var ds: RDD[String] = rdd.cache()
+    var eff: Double = 0.0
     var counter: Int = 1
 
     do {
 
       //Step 1
       //Get a sample of the data
-      previousDS = ds.cache
+      //previousDS = ds.cache
 
       val dsInit = ds.sample(false, portion / divider, 1234)
 
@@ -194,27 +194,10 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
       }
 
-      val totalCount = sc.accumulator(0.0)
-      val singletonCount = sc.accumulator(0.0)
-
-      predictions.foreach {
-        case (sdfmol, prediction) =>
-          if (prediction.size == 1) {
-            singletonCount += 1.0
-          }
-          totalCount += 1.0
-      }
-
-      val eff = singletonCount.value / totalCount.value
-
-      val pw = new PrintWriter("data/efficiency" + counter)
-      pw.println(eff)
-      pw.close
-
       val dsZero: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
-      val dsOne: RDD[(String)] = predictions
+      dsOne = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
       val dsUnknown: RDD[(String)] = predictions
@@ -233,9 +216,38 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 10 Subtracting {0} moles from dataset
       ds = ds.subtract(dsZero).cache
-      counter = counter + 1
 
-    } while ((previousDS.count() != ds.count()) && !(ds.isEmpty()))
+      //Computing efficiency for stopping
+      val totalCount = sc.accumulator(0.0)
+      val singletonCount = sc.accumulator(0.0)
+
+      predictions.foreach {
+        case (sdfmol, prediction) =>
+          if (prediction.size == 1) {
+            singletonCount += 1.0
+          }
+          totalCount += 1.0
+      }
+
+      eff = singletonCount.value / totalCount.value
+
+      val pw = new PrintWriter("data/efficiency" + counter)
+      pw.println(eff)
+      pw.close
+      counter = counter + 1
+    } while (eff < 0.75)
+
+    //Docking rest of the dsOne mols
+    val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsOne)
+      //Removing empty molecules caused by oechem optimization problem
+      .map(_.trim).filter(_.nonEmpty).cache()
+    
+    //Keeping rest of processed poses i.e. dsOne mol poses
+    if (poses == null)
+      poses = dsDockOne
+    else
+      poses = poses.union(dsDockOne)
+
     new PosePipeline(poses, method)
 
   }
