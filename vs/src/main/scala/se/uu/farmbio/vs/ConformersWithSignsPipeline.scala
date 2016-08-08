@@ -235,7 +235,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       pw.println(eff)
       pw.close
       counter = counter + 1
-    } while (eff < 0.75)
+    } while (eff > 0.75 && counter >=4)
 
     //Docking rest of the dsOne mols
     val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsOne)
