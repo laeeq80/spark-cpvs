@@ -20,6 +20,19 @@ import java.nio.charset.Charset
 
 import scala.io.Source
 
+object SBVSPipelineTest {
+  private def parseSignature = (pose: String) => {
+    var res: String = null
+    val it = SBVSPipeline.CDKInit(pose)
+    while (it.hasNext()) {
+      val mol = it.next
+      res = mol.getProperty("Signature")
+    }
+    res
+  }
+
+}
+
 @RunWith(classOf[JUnitRunner])
 class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
 
@@ -32,6 +45,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
   sc.hadoopConfiguration.set(SDFRecordReader.SIZE_PROPERTY_NAME, "3")
   sc.hadoopConfiguration.set(SmilesRecordReader.SIZE_PROPERTY_NAME, "3")
 
+  
   test("sortByScore should sort a set of poses by score") {
 
     val res = new SBVSPipeline(sc)
@@ -44,7 +58,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res === sortedPoses)
 
   }
-
+  
   test("collapse should collapse poses with same id to n with highest score") {
 
     val n = 2
@@ -131,6 +145,35 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     val dockedMolecules = TestUtils.readSDF(getClass.getResource("new_pose_file.sdf").getPath)
     assert(res.map(TestUtils.removeSDFheader).toSet
       === dockedMolecules.map(TestUtils.removeSDFheader).toSet)
+
+  }
+
+  test("Signatures are maintained(not lost) after docking") {
+
+    val molWithSigns = new SBVSPipeline(sc)
+      .readConformerFile(getClass.getResource("filtered_conformers.sdf").getPath)
+      .generateSignatures()
+      .getMolecules
+
+    val signsBeforeDocking = molWithSigns.map {
+      case (mol) =>
+        SBVSPipelineTest.parseSignature(mol)
+    }.collect()
+
+    val molWithSignsAndDockingScore = new SBVSPipeline(sc)
+      .readConformerRDDs(Seq(molWithSigns))
+      .dock(getClass.getResource("receptor.oeb").getPath,
+        OEDockMethod.Chemgauss4, OESearchResolution.Standard)
+      .getMolecules
+
+    val signsAfterDocking = molWithSignsAndDockingScore.map {
+      case (mol) =>
+        SBVSPipelineTest.parseSignature(mol)
+    }.collect()
+    
+    //Comparing signatures before and after docking
+    assert(signsBeforeDocking.toSet()
+      === signsAfterDocking.toSet())
 
   }
 

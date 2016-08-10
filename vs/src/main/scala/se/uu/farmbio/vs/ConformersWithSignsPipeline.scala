@@ -1,37 +1,16 @@
 package se.uu.farmbio.vs
 
-import se.uu.farmbio.cp.ICPClassifierModel
 import se.uu.farmbio.cp.AggregatedICPClassifier
-import se.uu.farmbio.cp.BinaryClassificationICPMetrics
 import se.uu.farmbio.cp.ICP
 import se.uu.farmbio.cp.alg.SVM
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.SparkFiles
-import org.apache.spark.SparkContext
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
-import org.apache.commons.lang.NotImplementedException
 
-import java.lang.Exception
-import java.io.PrintWriter
 import java.io.StringWriter
-import java.nio.file.Paths
-import java.io.ByteArrayInputStream
-import java.nio.charset.Charset
 
-import scala.io.Source
-import scala.collection.JavaConverters.seqAsJavaListConverter
-import scala.math.round
-
-import org.openscience.cdk.io.MDLV2000Reader
-import org.openscience.cdk.interfaces.IAtomContainer
-import org.openscience.cdk.tools.manipulator.ChemFileManipulator
-import org.openscience.cdk.silent.ChemFile
 import org.openscience.cdk.io.SDFWriter
-
-import se.uu.farmbio.sg.SGUtils
-import se.uu.farmbio.sg.types.SignatureRecordDecision
 
 trait ConformersWithSignsTransforms {
   def dockWithML(receptorPath: String, method: Int, resolution: Int): SBVSPipeline with PoseTransforms
@@ -200,19 +179,6 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       dsOne = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
-      val dsUnknown: RDD[(String)] = predictions
-        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
-        .map { case (sdfmol, prediction) => sdfmol }
-
-      val pw1 = new PrintWriter("data/dsZero" + counter)
-      pw1.println(dsZero.count)
-      pw1.close
-      val pw2 = new PrintWriter("data/dsOne" + counter)
-      pw2.println(dsOne.count)
-      pw2.close
-      val pw3 = new PrintWriter("data/dsUnknown" + counter)
-      pw3.println(dsUnknown.count)
-      pw3.close
 
       //Step 10 Subtracting {0} moles from dataset
       ds = ds.subtract(dsZero).cache
@@ -230,10 +196,6 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
 
       eff = singletonCount.value / totalCount.value
-
-      val pw = new PrintWriter("data/efficiency" + counter)
-      pw.println(eff)
-      pw.close
       counter = counter + 1
     } while (eff < 0.8 || counter < 4)
 
@@ -241,7 +203,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsOne)
       //Removing empty molecules caused by oechem optimization problem
       .map(_.trim).filter(_.nonEmpty).cache()
-    
+
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
       poses = dsDockOne
