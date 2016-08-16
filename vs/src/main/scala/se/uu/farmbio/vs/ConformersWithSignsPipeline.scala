@@ -3,17 +3,23 @@ package se.uu.farmbio.vs
 import se.uu.farmbio.cp.AggregatedICPClassifier
 import se.uu.farmbio.cp.ICP
 import se.uu.farmbio.cp.alg.SVM
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
+import org.openscience.cdk.io.SDFWriter
 
 import java.io.StringWriter
 
-import org.openscience.cdk.io.SDFWriter
-
 trait ConformersWithSignsTransforms {
-  def dockWithML(receptorPath: String, method: Int, resolution: Int): SBVSPipeline with PoseTransforms
+  def dockWithML(
+    receptorPath: String,
+    method: Int,
+    resolution: Int,
+    numOfICPs: Int = 5,
+    calibrationSize: Int = 50,
+    numIterations: Int = 50,
+    portion: Double = 100,
+    divider: Double = 1000): SBVSPipeline with PoseTransforms
 }
 
 object ConformersWithSignsPipeline extends Serializable {
@@ -78,11 +84,18 @@ object ConformersWithSignsPipeline extends Serializable {
 private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     extends SBVSPipeline(rdd) with ConformersWithSignsTransforms {
 
-  override def dockWithML(receptorPath: String, method: Int, resolution: Int) = {
-    //initializations
+  override def dockWithML(
+    receptorPath: String,
+    method: Int,
+    resolution: Int,
+    numOfICPs: Int,
+    calibrationSize: Int,
+    numIterations: Int,
+    portion: Double,
+    divider: Double) = {
 
-    val portion = 100
-    var divider: Double = 1000
+    //initializations
+    var divisor: Double = divider
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOne: RDD[(String)] = null
@@ -94,14 +107,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 1
       //Get a sample of the data
-      //previousDS = ds.cache
+      val dsInit = ds.sample(false, portion / divisor, 1234)
 
-      val dsInit = ds.sample(false, portion / divider, 1234)
-
-      if (divider > portion) {
-        divider = divider - portion
+      if (divisor > portion) {
+        divisor = divisor - portion
       }
-
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -141,10 +151,6 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
 
       //Step 8 Training
-      //Training initializations
-      val numOfICPs = 5
-      val calibrationSize = 50
-      val numIterations = 50
       //Train icps
 
       val icps = (1 to numOfICPs).map { _ =>

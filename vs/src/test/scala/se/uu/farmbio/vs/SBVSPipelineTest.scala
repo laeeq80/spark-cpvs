@@ -10,15 +10,8 @@ import org.scalatest.junit.JUnitRunner
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
 import openeye.oemolprop.OEFilterType
-
 import se.uu.farmbio.parsers.SDFRecordReader
 import se.uu.farmbio.parsers.SmilesRecordReader
-import se.uu.farmbio.sg.SGUtils
-
-import java.io.ByteArrayInputStream
-import java.nio.charset.Charset
-
-import scala.io.Source
 
 object SBVSPipelineTest {
   private def parseSignature = (pose: String) => {
@@ -29,6 +22,21 @@ object SBVSPipelineTest {
       res = mol.getProperty("Signature")
     }
     res
+  }
+
+  private def getFormat = (pose: String) => {
+
+    var signType: String = null
+    val it = SBVSPipeline.CDKInit(pose)
+
+    val mol = it.next()
+    val sign: String = mol.getProperty("Signature")
+    val score: String = mol.getProperty("Chemgauss4")
+    val scoreInDouble: Double = score.toDouble
+    (mol.getClass.getSimpleName.toString(),
+      sign.getClass.getSimpleName.toString(),
+      scoreInDouble.getClass().getSimpleName.toString())
+
   }
 
 }
@@ -45,7 +53,6 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
   sc.hadoopConfiguration.set(SDFRecordReader.SIZE_PROPERTY_NAME, "3")
   sc.hadoopConfiguration.set(SmilesRecordReader.SIZE_PROPERTY_NAME, "3")
 
-  
   test("sortByScore should sort a set of poses by score") {
 
     val res = new SBVSPipeline(sc)
@@ -58,7 +65,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res === sortedPoses)
 
   }
-  
+
   test("collapse should collapse poses with same id to n with highest score") {
 
     val n = 2
@@ -170,10 +177,30 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
       case (mol) =>
         SBVSPipelineTest.parseSignature(mol)
     }.collect()
-    
+
     //Comparing signatures before and after docking
     assert(signsBeforeDocking.toSet()
       === signsAfterDocking.toSet())
+
+  }
+
+  test("dockWithML should generate the poses in expected format") {
+    val molsWithSignAndScore = new SBVSPipeline(sc)
+      .readConformerFile(getClass.getResource("100mols.sdf").getPath)
+      .generateSignatures
+      .dockWithML(getClass.getResource("receptor.oeb").getPath,
+        OEDockMethod.Chemgauss4, OESearchResolution.Standard,
+        numOfICPs = 5,
+        calibrationSize = 5,
+        numIterations = 20,
+        portion = 20,
+        divider = 100)
+      .getMolecules
+      .collect()
+
+    val format = SBVSPipelineTest.getFormat(molsWithSignAndScore(0))
+
+    assert(format === ("AtomContainer", "String", "double"))
 
   }
 
