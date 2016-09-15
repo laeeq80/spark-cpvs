@@ -88,6 +88,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     receptorPath: String,
     method: Int,
     resolution: Int,
+    
+    //Default values are given in the trait See above
     numOfICPs: Int,
     calibrationSize: Int,
     numIterations: Int,

@@ -21,7 +21,8 @@ object DockerWithML extends Logging {
     master: String = null,
     conformersFile: String = null,
     signatureOutputFile: String = null,
-    receptorFile: String = null)
+    receptorFile: String = null,
+    oeLicensePath: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -42,6 +43,9 @@ object DockerWithML extends Logging {
         .required()
         .text("path to output signature file")
         .action((x, c) => c.copy(signatureOutputFile = x))
+      opt[String]("oeLicensePath")
+        .text("path to OEChem License")
+        .action((x, c) => c.copy(oeLicensePath = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -57,7 +61,9 @@ object DockerWithML extends Logging {
     //Init Spark
     val conf = new SparkConf()
       .setAppName("SignatureExample")
-
+    if (params.oeLicensePath != null) {
+      conf.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
+    }
     if (params.master != null) {
       conf.setMaster(params.master)
     }
@@ -67,7 +73,7 @@ object DockerWithML extends Logging {
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
-      .sortByScore
+      //.sortByScore
       .getMolecules
       .take(10)
     val t1 = System.currentTimeMillis
