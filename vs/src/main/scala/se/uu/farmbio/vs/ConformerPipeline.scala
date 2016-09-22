@@ -21,7 +21,7 @@ import org.openscience.cdk.interfaces.IAtomContainer
 
 trait ConformerTransforms {
 
-  def dock(receptorPath: String, method: Int, resolution: Int): SBVSPipeline with PoseTransforms
+  def dock(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean = false): SBVSPipeline with PoseTransforms
   def repartition: SBVSPipeline with ConformerTransforms
   def generateSignatures(): SBVSPipeline with ConformersWithSignsTransforms
 }
@@ -55,7 +55,7 @@ object ConformerPipeline extends Logging {
 
   }
 
-  private[vs] def getDockingRDD(receptorPath: String, method: Int, resolution: Int, sc: SparkContext, rdd: RDD[String]) = {
+  private[vs] def getDockingRDD(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean, sc: SparkContext, rdd: RDD[String]) = {
     //Use local CPP if DOCKING_CPP is set
     val dockingstdPath = if (System.getenv("DOCKING_CPP") != null) {
       logInfo("using local dockingstd: " + System.getenv("DOCKING_CPP"))
@@ -111,9 +111,9 @@ object ConformerPipeline extends Logging {
 private[vs] class ConformerPipeline(override val rdd: RDD[String])
     extends SBVSPipeline(rdd) with ConformerTransforms {
 
-  override def dock(receptorPath: String, method: Int, resolution: Int) = {
+  override def dock(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean) = {
 
-    val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, rdd)
+    val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, dockTimePerMol, sc, rdd)
     val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
     new PosePipeline(res, method)
   }

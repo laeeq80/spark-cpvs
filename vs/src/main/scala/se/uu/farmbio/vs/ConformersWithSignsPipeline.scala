@@ -88,7 +88,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     receptorPath: String,
     method: Int,
     resolution: Int,
-    
+
     //Default values are given in the trait See above
     numOfICPs: Int,
     calibrationSize: Int,
@@ -120,7 +120,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 3
       //Docking the sampled dataset
-      val dsDock = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsInit)
+      val dsDock = ConformerPipeline
+        .getDockingRDD(receptorPath, method, resolution, false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
         .map(_.trim).filter(_.nonEmpty).cache()
 
@@ -208,7 +209,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     } while (eff < 0.8 || counter < 4)
 
     //Docking rest of the dsOne mols
-    val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, sc, dsOne)
+    val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, false, sc, dsOne)
       //Removing empty molecules caused by oechem optimization problem
       .map(_.trim).filter(_.nonEmpty).cache()
 
