@@ -13,34 +13,6 @@ import openeye.oemolprop.OEFilterType
 import se.uu.farmbio.parsers.SDFRecordReader
 import se.uu.farmbio.parsers.SmilesRecordReader
 
-object SBVSPipelineTest {
-  private def parseSignature = (pose: String) => {
-    var res: String = null
-    val it = SBVSPipeline.CDKInit(pose)
-    while (it.hasNext()) {
-      val mol = it.next
-      res = mol.getProperty("Signature")
-    }
-    res
-  }
-
-  private def getFormat = (pose: String) => {
-
-    var signType: String = null
-    val it = SBVSPipeline.CDKInit(pose)
-
-    val mol = it.next()
-    val sign: String = mol.getProperty("Signature")
-    val score: String = mol.getProperty("Chemgauss4")
-    val scoreInDouble: Double = score.toDouble
-    (mol.getClass.getSimpleName.toString(),
-      sign.getClass.getSimpleName.toString(),
-      scoreInDouble.getClass().getSimpleName.toString())
-
-  }
-
-}
-
 @RunWith(classOf[JUnitRunner])
 class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
 
@@ -164,7 +136,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
 
     val signsBeforeDocking = molWithSigns.map {
       case (mol) =>
-        SBVSPipelineTest.parseSignature(mol)
+        TestUtils.parseSignature(mol)
     }.collect()
 
     val molWithSignsAndDockingScore = new SBVSPipeline(sc)
@@ -175,7 +147,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
 
     val signsAfterDocking = molWithSignsAndDockingScore.map {
       case (mol) =>
-        SBVSPipelineTest.parseSignature(mol)
+        TestUtils.parseSignature(mol)
     }.collect()
 
     //Comparing signatures before and after docking
@@ -198,7 +170,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
       .getMolecules
       .collect()
 
-    val format = SBVSPipelineTest.getFormat(molsWithSignAndScore(0))
+    val format = TestUtils.getFormat(molsWithSignAndScore(0))
 
     assert(format === ("AtomContainer", "String", "double"))
 
