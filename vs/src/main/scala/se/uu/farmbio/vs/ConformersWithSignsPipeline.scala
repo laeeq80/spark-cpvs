@@ -121,7 +121,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
-        .getDockingRDD(receptorPath, method, resolution, false, sc, dsInit)
+        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol=false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
         .map(_.trim).filter(_.nonEmpty).cache()
 

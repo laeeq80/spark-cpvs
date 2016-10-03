@@ -88,6 +88,7 @@ private[vs] object PosePipeline extends Logging {
     result
   }
 
+  @deprecated("parent Method collapse deprecated", "Sep 29, 2016")
   private def collapsePoses(bestN: Int, parseScore: String => Double) = (record: (String, Iterable[String])) => {
     record._2.toList.sortBy(parseScore).reverse.take(bestN)
   }
@@ -97,7 +98,7 @@ private[vs] object PosePipeline extends Logging {
 private[vs] class PosePipeline(override val rdd: RDD[String], val scoreMethod: Int) extends SBVSPipeline(rdd)
     with PoseTransforms {
 
-  //Need a local copy due to serialization error 
+  // Need a local copy due to serialization error 
   // http://spark-summit.org/wp-content/uploads/2013/10/McDonough-spark-tutorial_spark-summit-2013.pptx
   val methodBroadcast = rdd.sparkContext.broadcast(scoreMethod)
 
@@ -114,9 +115,9 @@ private[vs] class PosePipeline(override val rdd: RDD[String], val scoreMethod: I
       idAndScore.foldLeft(Map[String, Double]() withDefaultValue Double.MinValue) {
         case (m, (id, score)) => m updated (id, score max m(id))
       }
-      .toSeq
-      .sortBy { case (id, score) => -score }
-      .take(topN).toArray
+        .toSeq
+        .sortBy { case (id, score) => -score }
+        .take(topN).toArray
 
     //Broadcasting the top id and score and search main rdd
     //for top molecules in parallel  
@@ -127,15 +128,21 @@ private[vs] class PosePipeline(override val rdd: RDD[String], val scoreMethod: I
         .map(topHit => topHit == idAndScore)
         .reduce(_ || _)
     }
+    //return statement  
     topPoses.collect
+      .sortBy {
+        mol => -PosePipeline.parseScore(methodBroadcast.value)(mol)
+      }
   }
 
+  @deprecated("Spark sortBy is slow, use getTopPoses instead", "Sep 29, 2016")
   override def sortByScore = {
     val res = rdd.sortBy(PosePipeline
       .parseScore(methodBroadcast.value), false)
     new PosePipeline(res, scoreMethod)
   }
 
+  @deprecated("getTopPoses includes collapsing", "Sep 29, 2016")
   override def collapse(bestN: Int) = {
     val res = rdd.groupBy(PosePipeline.parseId)
       .flatMap(PosePipeline.collapsePoses(bestN, PosePipeline.parseScore(methodBroadcast.value)))

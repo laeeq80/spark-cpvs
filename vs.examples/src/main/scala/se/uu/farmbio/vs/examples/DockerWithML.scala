@@ -22,7 +22,8 @@ object DockerWithML extends Logging {
     conformersFile: String = null,
     signatureOutputFile: String = null,
     receptorFile: String = null,
-    oeLicensePath: String = null)
+    oeLicensePath: String = null,
+    topN: Int = 30)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -46,6 +47,9 @@ object DockerWithML extends Logging {
       opt[String]("oeLicensePath")
         .text("path to OEChem License")
         .action((x, c) => c.copy(oeLicensePath = x))
+      opt[Int]("topN")
+        .text("number of top scoring poses to extract (default: 30).")
+        .action((x, c) => c.copy(topN = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -73,9 +77,8 @@ object DockerWithML extends Logging {
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
-      //.sortByScore
-      .getMolecules
-      .take(10)
+      .getTopPoses(params.topN)
+
     val t1 = System.currentTimeMillis
     println(s"DockWithML took: ${t1 - t0} millisec.")
 
