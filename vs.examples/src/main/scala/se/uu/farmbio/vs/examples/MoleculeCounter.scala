@@ -46,7 +46,7 @@ object MoleculeCounter extends Logging {
 
     //Init Spark
     val conf = new SparkConf()
-      .setAppName("SignatureExample")
+      .setAppName("MoleculeCounter")
 
     if (params.master != null) {
       conf.setMaster(params.master)

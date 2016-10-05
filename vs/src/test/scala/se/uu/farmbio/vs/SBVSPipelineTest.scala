@@ -134,7 +134,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
       .getTopPoses(topN)
 
     val topCollapsed = TestUtils.readSDF(getClass.getResource("top_collapsed.sdf").getPath)
-    assert(res.map(TestUtils.removeSDFheader).toSet === topCollapsed.map(TestUtils.removeSDFheader).toSet)
+    assert(res.map(TestUtils.removeSDFheader) === topCollapsed.map(TestUtils.removeSDFheader))
 
   }
 

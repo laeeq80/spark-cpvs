@@ -6,7 +6,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
-import java.io.PrintWriter
 
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
@@ -20,7 +19,7 @@ object DockerWithML extends Logging {
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
-    signatureOutputFile: String = null,
+    topPosesPath: String = null,
     receptorFile: String = null,
     oeLicensePath: String = null,
     topN: Int = 30)
@@ -40,10 +39,10 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input OEB receptor file")
         .action((x, c) => c.copy(receptorFile = x))
-      arg[String]("<signature-output-file>")
+      arg[String]("<top-poses-path>")
         .required()
-        .text("path to output signature file")
-        .action((x, c) => c.copy(signatureOutputFile = x))
+        .text("path to top output poses")
+        .action((x, c) => c.copy(topPosesPath = x))
       opt[String]("oeLicensePath")
         .text("path to OEChem License")
         .action((x, c) => c.copy(oeLicensePath = x))
@@ -72,20 +71,14 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-    val t0 = System.currentTimeMillis
+   
     val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
       .getTopPoses(params.topN)
-
-    val t1 = System.currentTimeMillis
-    println(s"DockWithML took: ${t1 - t0} millisec.")
-
-    val pw = new PrintWriter(params.signatureOutputFile)
-    signatures.foreach(pw.println(_))
-    pw.close
-
+    
+    sc.parallelize(signatures, 1).saveAsTextFile(params.topPosesPath) 
     sc.stop()
 
   }
