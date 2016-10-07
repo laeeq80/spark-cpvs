@@ -15,11 +15,11 @@ trait ConformersWithSignsTransforms {
     receptorPath: String,
     method: Int,
     resolution: Int,
-    numOfICPs: Int = 5,
-    calibrationSize: Int = 50,
-    numIterations: Int = 50,
-    portion: Double = 100,
-    divider: Double = 1000): SBVSPipeline with PoseTransforms
+    numOfICPs: Int = 10,
+    calibrationSize: Int = 100,
+    numIterations: Int = 100,
+    portion: Double = 1000,
+    divider: Double = 147812): SBVSPipeline with PoseTransforms
 }
 
 object ConformersWithSignsPipeline extends Serializable {

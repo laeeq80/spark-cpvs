@@ -63,7 +63,7 @@ object DockerWithML extends Logging {
 
     //Init Spark
     val conf = new SparkConf()
-      .setAppName("SignatureExample")
+      .setAppName("DockerWithML")
     if (params.oeLicensePath != null) {
       conf.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
     }
