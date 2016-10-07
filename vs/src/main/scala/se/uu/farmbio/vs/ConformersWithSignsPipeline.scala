@@ -101,7 +101,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOne: RDD[(String)] = null
-    var ds: RDD[String] = rdd.cache()
+    var ds: RDD[String] = rdd
     var eff: Double = 0.0
     var counter: Int = 1
 
@@ -109,7 +109,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 1
       //Get a sample of the data
-      val dsInit = ds.sample(false, portion / divisor, 1234)
+      val dsInit = ds.sample(false, portion / divisor, 1234).cache()
 
       if (divisor > portion) {
         divisor = divisor - portion
@@ -123,7 +123,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol=false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
-        .map(_.trim).filter(_.nonEmpty).cache()
+        .map(_.trim).filter(_.nonEmpty)
 
       //Step 4
       //Keeping processed poses
@@ -133,7 +133,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         poses = poses.union(dsDock)
 
       //Step 5 and 6 Computing dsTopAndBottom
-      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method))
+      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).cache()
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
       val dsTopAndBottom = dsDock.map {
@@ -180,7 +180,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 9 Prediction using our model
       val predictions = fvDs.map {
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
-      }
+      }.cache
 
       val dsZero: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
@@ -211,7 +211,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     //Docking rest of the dsOne mols
     val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, false, sc, dsOne)
       //Removing empty molecules caused by oechem optimization problem
-      .map(_.trim).filter(_.nonEmpty).cache()
+      .map(_.trim).filter(_.nonEmpty)
 
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
