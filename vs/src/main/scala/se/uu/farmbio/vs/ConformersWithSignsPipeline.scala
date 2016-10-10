@@ -18,8 +18,8 @@ trait ConformersWithSignsTransforms {
     numOfICPs: Int = 10,
     calibrationSize: Int = 100,
     numIterations: Int = 100,
-    portion: Double = 1000,
-    divider: Double = 147812): SBVSPipeline with PoseTransforms
+    portion: Double = 500,
+    divider: Double = 10000): SBVSPipeline with PoseTransforms
 }
 
 object ConformersWithSignsPipeline extends Serializable {
@@ -109,11 +109,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 1
       //Get a sample of the data
-      val dsInit = ds.sample(false, portion / divisor, 1234).cache()
+      val dsInit = ds.sample(false, 0.1, 1234).cache()
 
-      if (divisor > portion) {
+      /*if (divisor > portion) {
         divisor = divisor - portion
-      }
+      }*/
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
