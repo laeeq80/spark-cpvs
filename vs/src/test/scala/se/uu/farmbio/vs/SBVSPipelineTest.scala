@@ -37,7 +37,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res === sortedPoses)
 
   }
-
+/*
   ignore("collapse should collapse poses with same id to n with highest score") {
 
     val n = 2
@@ -165,19 +165,18 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(signsBeforeDocking.toSet()
       === signsAfterDocking.toSet())
 
-  }
+  }*/
 
   test("dockWithML should generate the poses in expected format") {
     val molsWithSignAndScore = new SBVSPipeline(sc)
       .readConformerFile(getClass.getResource("100mols.sdf").getPath)
       .generateSignatures
       .dockWithML(getClass.getResource("receptor.oeb").getPath,
-        OEDockMethod.Chemgauss4, OESearchResolution.Standard,
-        numOfICPs = 5,
+        OEDockMethod.Chemgauss4,
+        OESearchResolution.Standard,
+        dsInitPercent = 0.2,
         calibrationSize = 5,
-        numIterations = 20,
-        portion = 20,
-        divider = 100)
+        numIterations = 20)
       .getMolecules
       .collect()
 

@@ -1,9 +1,9 @@
 package se.uu.farmbio.vs
 
-import se.uu.farmbio.cp.AggregatedICPClassifier
 import se.uu.farmbio.cp.ICP
 import se.uu.farmbio.cp.alg.SVM
 import org.apache.spark.rdd.RDD
+import org.apache.spark.Logging
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
@@ -15,11 +15,9 @@ trait ConformersWithSignsTransforms {
     receptorPath: String,
     method: Int,
     resolution: Int,
-    numOfICPs: Int = 10,
-    calibrationSize: Int = 100,
-    numIterations: Int = 100,
-    portion: Double = 500,
-    divider: Double = 10000): SBVSPipeline with PoseTransforms
+    dsInitPercent: Double,
+    calibrationSize: Int,
+    numIterations: Int): SBVSPipeline with PoseTransforms
 }
 
 object ConformersWithSignsPipeline extends Serializable {
@@ -88,16 +86,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     receptorPath: String,
     method: Int,
     resolution: Int,
-
-    //Default values are given in the trait See above
-    numOfICPs: Int,
+    dsInitPercent: Double,
     calibrationSize: Int,
-    numIterations: Int,
-    portion: Double,
-    divider: Double) = {
+    numIterations: Int) = {
 
     //initializations
-    var divisor: Double = divider
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOne: RDD[(String)] = null
@@ -109,11 +102,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 1
       //Get a sample of the data
-      val dsInit = ds.sample(false, 0.1, 1234).cache()
+      val dsInit = ds.sample(false, dsInitPercent, 1234).cache()
 
-      /*if (divisor > portion) {
-        divisor = divisor - portion
-      }*/
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -121,7 +111,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
-        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol=false, sc, dsInit)
+        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
         .map(_.trim).filter(_.nonEmpty)
 
@@ -133,7 +123,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         poses = poses.union(dsDock)
 
       //Step 5 and 6 Computing dsTopAndBottom
-      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).cache()
+      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).cache
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
       val dsTopAndBottom = dsDock.map {
@@ -151,21 +141,16 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Converting SDF training set to LabeledPoint required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
-      }
+      }.cache()
 
       //Step 8 Training
       //Train icps
 
-      val icps = (1 to numOfICPs).map { _ =>
-        val (calibration, properTraining) =
-          ICP.calibrationSplit(lpDsTrain, calibrationSize)
-        //Train ICP
-        val svm = new SVM(properTraining.cache, numIterations)
-        ICP.trainClassifier(svm, numClasses = 2, calibration)
-      }
-
-      //SVM based Aggregated ICP Classifier (our model)
-      val icp = new AggregatedICPClassifier(icps)
+      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain, calibrationSize)
+      //Train ICP
+      val svm = new SVM(properTraining.cache, numIterations)
+      //SVM based ICP Classifier (our model)
+      val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
 
       //Converting SDF main dataset (ds) to feature vector required for conformal prediction
       //We also need to keep intact the poses so at the end we know
@@ -184,10 +169,16 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       val dsZero: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
-        .map { case (sdfmol, prediction) => sdfmol }
+        .map { case (sdfmol, prediction) => sdfmol }.cache
       dsOne = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
+        .map { case (sdfmol, prediction) => sdfmol }.cache
+      val dsUnknown: RDD[(String)] = predictions
+        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
+      logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
+      logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
+      logInfo("Number of Unknown mols in cycle " + counter + " are " + dsUnknown.count)
 
       //Step 10 Subtracting {0} moles from dataset
       ds = ds.subtract(dsZero).cache
@@ -205,6 +196,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
 
       eff = singletonCount.value / totalCount.value
+      logInfo("Efficiency in cycle " + counter + " is " + eff)
       counter = counter + 1
     } while (eff < 0.8 || counter < 4)
 
