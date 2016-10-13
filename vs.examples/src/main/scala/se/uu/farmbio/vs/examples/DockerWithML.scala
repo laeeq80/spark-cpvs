@@ -22,6 +22,9 @@ object DockerWithML extends Logging {
     topPosesPath: String = null,
     receptorFile: String = null,
     oeLicensePath: String = null,
+    dsInitPercent: Double = 0.05,
+    calibrationSize: Int = 50,
+    numIterations: Int = 50,
     topN: Int = 30)
 
   def main(args: Array[String]) {
@@ -31,6 +34,15 @@ object DockerWithML extends Logging {
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
+      opt[Double]("dsInitPercent")
+        .text("intial Data Sample to be docked (default: 0.01)")
+        .action((x, c) => c.copy(dsInitPercent = x.toDouble))
+      opt[Int]("calibrationSize")
+        .text("size of calibration Set (default: 100)")
+        .action((x, c) => c.copy(calibrationSize = x))
+      opt[Int]("numIterations")
+        .text("number of iternations for the ML model training (default: 100)")
+        .action((x, c) => c.copy(numIterations = x))
       arg[String]("<conformers-file>")
         .required()
         .text("path to input SDF conformers file")
@@ -71,14 +83,19 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-   
+
     val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures()
-      .dockWithML(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
+      .dockWithML(params.receptorFile,
+        OEDockMethod.Chemgauss4,
+        OESearchResolution.Standard,
+        params.dsInitPercent,
+        params.calibrationSize,
+        params.numIterations)
       .getTopPoses(params.topN)
-    
-    sc.parallelize(signatures, 1).saveAsTextFile(params.topPosesPath) 
+
+    sc.parallelize(signatures, 1).saveAsTextFile(params.topPosesPath)
     sc.stop()
 
   }
