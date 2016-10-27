@@ -10,7 +10,7 @@ import org.openscience.cdk.io.SDFWriter
 
 import java.io.StringWriter
 
-trait ConformersWithSignsTransforms {
+trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
     receptorPath: String,
     method: Int,
@@ -20,7 +20,7 @@ trait ConformersWithSignsTransforms {
     numIterations: Int): SBVSPipeline with PoseTransforms
 }
 
-object ConformersWithSignsPipeline extends Serializable {
+object ConformersWithSignsAndScorePipeline extends Serializable {
 
   private def getLPRDD(poses: String) = {
     val it = SBVSPipeline.CDKInit(poses)
@@ -79,8 +79,8 @@ object ConformersWithSignsPipeline extends Serializable {
 
 }
 
-private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
-    extends SBVSPipeline(rdd) with ConformersWithSignsTransforms {
+private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[String])
+    extends SBVSPipeline(rdd) with ConformersWithSignsAndScoreTransforms {
 
   override def dockWithML(
     receptorPath: String,
@@ -109,11 +109,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       ds = ds.subtract(dsInit)
 
       //Step 3
-      //Docking the sampled dataset
-      val dsDock = ConformerPipeline
-        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
-        //Removing empty molecules caused by oechem optimization problem
-        .map(_.trim).filter(_.nonEmpty)
+      //Mocking the sampled dataset. We already have scores, docking not required
+      val dsDock = dsInit
 
       //Step 4
       //Keeping processed poses
@@ -129,7 +126,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsTopAndBottom = dsDock.map {
         case (mol) =>
           val score = PosePipeline.parseScore(method)(mol)
-          ConformersWithSignsPipeline.labelTopAndBottom(mol, score, parseScoreHistogram._1)
+          ConformersWithSignsAndScorePipeline.labelTopAndBottom(mol, score, parseScoreHistogram._1)
       }.map(_.trim).filter(_.nonEmpty)
       
       parseScoreRDD.unpersist()
@@ -141,7 +138,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Converting SDF training set to LabeledPoint required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
-        sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
+        sdfmol => ConformersWithSignsAndScorePipeline.getLPRDD(sdfmol)
       }
 
       //Step 8 Training
@@ -161,7 +158,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       val fvDs = ds.flatMap {
         sdfmol =>
-          ConformersWithSignsPipeline.getFeatureVector(sdfmol)
+          ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
             .map { case (vector) => (sdfmol, vector) }
       }
 
