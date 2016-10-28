@@ -144,7 +144,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 8 Training
       //Train icps
 
+      //val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache, calibrationSize, stratified=true)
       val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache, calibrationSize)
+
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
@@ -199,12 +201,10 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       eff = singletonCount.value / totalCount.value
       logInfo("Efficiency in cycle " + counter + " is " + eff)
       counter = counter + 1
-    } while (eff < 0.8 || counter < 4)
+    } while ((eff < 0.8 || counter < 4) && !(ds.isEmpty()))
 
     //Docking rest of the dsOne mols
-    val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, false, sc, dsOne)
-      //Removing empty molecules caused by oechem optimization problem
-      .map(_.trim).filter(_.nonEmpty)
+    val dsDockOne = dsOne
 
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
