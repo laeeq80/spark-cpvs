@@ -15,7 +15,7 @@ trait ConformersWithSignsAndScoreTransforms {
     receptorPath: String,
     method: Int,
     resolution: Int,
-    dsInitPercent: Double,
+    dsInitSize: Int,
     calibrationSize: Int,
     numIterations: Int): SBVSPipeline with PoseTransforms
 }
@@ -86,7 +86,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     receptorPath: String,
     method: Int,
     resolution: Int,
-    dsInitPercent: Double,
+    dsInitSize: Int,
     calibrationSize: Int,
     numIterations: Int) = {
 
@@ -96,15 +96,16 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var dsOne: RDD[(String)] = null
     var ds: RDD[String] = rdd
     var eff: Double = 0.0
-    var counter: Int = 1
+    var counter: Int = 0
+    var effCounter : Int = 0
     var calibrationSizeDynamic: Int = 0
 
     do {
 
       //Step 1
       //Get a sample of the data
-      val dsInit = ds.sample(false, dsInitPercent, 1234)
-
+      //val dsInit = ds.sample(false, dsInitPercent, 1234)
+      val dsInit = sc.makeRDD(ds.takeSample(false, dsInitSize, 1234)) 
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -202,7 +203,11 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       eff = singletonCount.value / totalCount.value
       logInfo("Efficiency in cycle " + counter + " is " + eff)
       counter = counter + 1
-    } while ((eff < 0.8 || counter < 4) && ds.count > 40)
+      if ( eff > 0.8) 
+        effCounter = effCounter + 1
+      else
+        effCounter = 0
+    } while ((effCounter < 3 || counter < 4) && ds.count > 40)
 
     //Docking rest of the dsOne mols
     val dsDockOne = dsOne

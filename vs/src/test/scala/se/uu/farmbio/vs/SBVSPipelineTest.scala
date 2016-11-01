@@ -174,7 +174,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
       .dockWithML(getClass.getResource("receptor.oeb").getPath,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
-        dsInitPercent = 0.2,
+        dsInitSize = 20,
         calibrationSize = 5,
         numIterations = 20)
       .getMolecules
