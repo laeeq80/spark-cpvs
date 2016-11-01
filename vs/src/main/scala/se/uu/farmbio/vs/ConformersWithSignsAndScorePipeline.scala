@@ -97,6 +97,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var ds: RDD[String] = rdd
     var eff: Double = 0.0
     var counter: Int = 1
+    var calibrationSizeDynamic: Int = 0
 
     do {
 
@@ -143,9 +144,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       //Step 8 Training
       //Train icps
-
-      //val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache, calibrationSize, stratified=true)
-      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache, calibrationSize)
+      calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
+      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache, calibrationSizeDynamic)
+      //val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache, calibrationSize)
 
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
@@ -201,7 +202,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       eff = singletonCount.value / totalCount.value
       logInfo("Efficiency in cycle " + counter + " is " + eff)
       counter = counter + 1
-    } while ((eff < 0.8 || counter < 4) && !(ds.isEmpty()))
+    } while ((eff < 0.8 || counter < 4) && ds.count > 40)
 
     //Docking rest of the dsOne mols
     val dsDockOne = dsOne
