@@ -22,7 +22,7 @@ object DockerWithML extends Logging {
     topPosesPath: String = null,
     receptorFile: String = null,
     oeLicensePath: String = null,
-    dsInitPercent: Double = 0.05,
+    dsInitSize: Int = 100,
     calibrationSize: Int = 50,
     numIterations: Int = 50,
     topN: Int = 30)
@@ -34,9 +34,9 @@ object DockerWithML extends Logging {
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
-      opt[Double]("dsInitPercent")
-        .text("intial Data Sample to be docked (default: 0.01)")
-        .action((x, c) => c.copy(dsInitPercent = x.toDouble))
+      opt[Int]("dsInitSize")
+        .text("intial Data to be docked (default: 100)")
+        .action((x, c) => c.copy(dsInitSize = x))
       opt[Int]("calibrationSize")
         .text("size of calibration Set (default: 100)")
         .action((x, c) => c.copy(calibrationSize = x))
@@ -90,7 +90,7 @@ object DockerWithML extends Logging {
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
-        params.dsInitPercent,
+        params.dsInitSize,
         params.calibrationSize,
         params.numIterations)
       .getTopPoses(params.topN)
