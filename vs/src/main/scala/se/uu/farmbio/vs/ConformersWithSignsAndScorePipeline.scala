@@ -99,6 +99,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var counter: Int = 0
     var effCounter : Int = 0
     var calibrationSizeDynamic: Int = 0
+    var badCounter: Long = 0
 
     do {
 
@@ -180,6 +181,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       val dsUnknown: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
+      badCounter = badCounter + dsZero.count  
       logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
       logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
       logInfo("Number of Unknown mols in cycle " + counter + " are " + dsUnknown.count)
@@ -208,7 +210,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       else
         effCounter = 0
     } while ((effCounter < 3 || counter < 4) && ds.count > 40)
-
+    logInfo("Total number of bad mols are " + badCounter) 
     //Docking rest of the dsOne mols
     val dsDockOne = dsOne
 
