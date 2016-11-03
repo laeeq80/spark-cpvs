@@ -16,7 +16,6 @@ trait ConformersWithSignsAndScoreTransforms {
     method: Int,
     resolution: Int,
     dsInitSize: Int,
-    calibrationSize: Int,
     numIterations: Int): SBVSPipeline with PoseTransforms
 }
 
@@ -87,7 +86,6 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     method: Int,
     resolution: Int,
     dsInitSize: Int,
-    calibrationSize: Int,
     numIterations: Int) = {
 
     //initializations
@@ -99,14 +97,14 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var counter: Int = 0
     var effCounter : Int = 0
     var calibrationSizeDynamic: Int = 0
-    var badCounter: Long = 0
+    var badCounter: Int = 0
 
     do {
 
       //Step 1
       //Get a sample of the data
-      //val dsInit = ds.sample(false, dsInitPercent, 1234)
       val dsInit = sc.makeRDD(ds.takeSample(false, dsInitSize, 1234)) 
+      
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -147,8 +145,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 8 Training
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
-      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache, calibrationSizeDynamic)
-      //val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache, calibrationSize)
+      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain, calibrationSizeDynamic)
 
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
@@ -178,14 +175,10 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       dsOne = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
-      val dsUnknown: RDD[(String)] = predictions
-        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
-        .map { case (sdfmol, prediction) => sdfmol }
-      badCounter = badCounter + dsZero.count  
+      
+      badCounter = badCounter + dsZero.count.toInt  
       logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
-      logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
-      logInfo("Number of Unknown mols in cycle " + counter + " are " + dsUnknown.count)
-     
+           
       //Step 10 Subtracting {0} moles from dataset
       ds = ds.subtract(dsZero)
       dsZero.unpersist()

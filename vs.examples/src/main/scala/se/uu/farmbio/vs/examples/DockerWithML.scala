@@ -23,7 +23,6 @@ object DockerWithML extends Logging {
     receptorFile: String = null,
     oeLicensePath: String = null,
     dsInitSize: Int = 100,
-    calibrationSize: Int = 50,
     numIterations: Int = 50,
     topN: Int = 30)
 
@@ -37,9 +36,6 @@ object DockerWithML extends Logging {
       opt[Int]("dsInitSize")
         .text("intial Data to be docked (default: 100)")
         .action((x, c) => c.copy(dsInitSize = x))
-      opt[Int]("calibrationSize")
-        .text("size of calibration Set (default: 100)")
-        .action((x, c) => c.copy(calibrationSize = x))
       opt[Int]("numIterations")
         .text("number of iternations for the ML model training (default: 100)")
         .action((x, c) => c.copy(numIterations = x))
@@ -91,7 +87,6 @@ object DockerWithML extends Logging {
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
         params.dsInitSize,
-        params.calibrationSize,
         params.numIterations)
       .getTopPoses(params.topN)
 

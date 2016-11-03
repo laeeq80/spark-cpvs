@@ -175,7 +175,6 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
         dsInitSize = 20,
-        calibrationSize = 5,
         numIterations = 20)
       .getMolecules
       .collect()
