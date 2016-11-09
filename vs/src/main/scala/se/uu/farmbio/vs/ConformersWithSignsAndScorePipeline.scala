@@ -156,10 +156,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache(), calibrationSizeDynamic)
-      //val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain, calibrationSizeDynamic, stratified=true)
 
       //Train ICP
-      val svm = new SVM(properTraining.coalesce(4).cache(), numIterations)
+      val svm = new SVM(properTraining.cache(), numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
       lpDsTrain.unpersist()
