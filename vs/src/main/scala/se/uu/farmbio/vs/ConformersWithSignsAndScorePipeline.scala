@@ -7,8 +7,8 @@ import org.apache.spark.Logging
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
-
 import java.io.StringWriter
+import se.uu.farmbio.cp.alg.SVM
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
@@ -62,7 +62,7 @@ object ConformersWithSignsAndScorePipeline extends Serializable {
       val mol = it.next
       val label = score match { //convert labels
         case x if x >= scoreHistogram(7) && x <= scoreHistogram(10) => 1.0
-        case x if x >= scoreHistogram(0) && x <= scoreHistogram(5) => 0.0
+        case x if x >= scoreHistogram(0) && x <= scoreHistogram(1) => 0.0
         case _ => "NAN"
       }
 
@@ -93,18 +93,28 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var dsTrain: RDD[String] = null
     var dsOne: RDD[(String)] = null
     var ds: RDD[String] = rdd
+    var dsComplete: RDD[String] = rdd
     var eff: Double = 0.0
     var counter: Int = 0
-    var effCounter : Int = 0
+    var effCounter: Int = 0
     var calibrationSizeDynamic: Int = 0
-    var badCounter: Int = 0
+
+    //Converting complete dataset (dsComplete) to feature vector required for conformal prediction
+    //We also need to keep intact the poses so at the end we know
+    //which molecules are predicted as bad and remove them from main set
+
+    val fvDsComplete = dsComplete.flatMap {
+      sdfmol =>
+        ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
+          .map { case (vector) => (sdfmol, vector) }
+    }
 
     do {
 
       //Step 1
       //Get a sample of the data
-      val dsInit = sc.makeRDD(ds.takeSample(false, dsInitSize, 1234)) 
-      
+      val dsInit = sc.makeRDD(ds.takeSample(false, dsInitSize, 1234))
+
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -129,7 +139,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
           val score = PosePipeline.parseScore(method)(mol)
           ConformersWithSignsAndScorePipeline.labelTopAndBottom(mol, score, parseScoreHistogram._1)
       }.map(_.trim).filter(_.nonEmpty)
-      
+
       parseScoreRDD.unpersist()
       //Step 7 Union dsTrain and dsTopAndBottom
       if (dsTrain == null)
@@ -145,27 +155,18 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 8 Training
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
-      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain, calibrationSizeDynamic)
+      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.cache(), calibrationSizeDynamic)
+      //val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain, calibrationSizeDynamic, stratified=true)
 
       //Train ICP
-      val svm = new SVM(properTraining.cache, numIterations)
+      val svm = new SVM(properTraining.coalesce(4).cache(), numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
       lpDsTrain.unpersist()
-      properTraining.unpersist()      
-      
-      //Converting SDF main dataset (ds) to feature vector required for conformal prediction
-      //We also need to keep intact the poses so at the end we know
-      //which molecules are predicted as bad and remove them from main set
+      properTraining.unpersist()
 
-      val fvDs = ds.flatMap {
-        sdfmol =>
-          ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
-            .map { case (vector) => (sdfmol, vector) }
-      }
-
-      //Step 9 Prediction using our model
-      val predictions = fvDs.map {
+      //Step 9 Prediction using our model on complete dataset
+      val predictions = fvDsComplete.map {
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
       }
 
@@ -175,12 +176,16 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       dsOne = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
-      
-      badCounter = badCounter + dsZero.count.toInt  
+      val dsUnknown: RDD[(String)] = predictions
+        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
+        .map { case (sdfmol, prediction) => sdfmol }
+      val dsEmpty: RDD[(String)] = predictions
+        .filter { case (sdfmol, prediction) => (prediction == Set()) }
+        .map { case (sdfmol, prediction) => sdfmol }      
       logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
-           
-      //Step 10 Subtracting {0} moles from dataset
-      ds = ds.subtract(dsZero)
+      logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
+      logInfo("Number of Unknown mols in cycle " + counter + " are " + dsUnknown.count)
+      logInfo("Number of Empty mols in cycle " + counter + " are " + dsEmpty.count)
       dsZero.unpersist()
       dsOne.unpersist()
       //Computing efficiency for stopping
@@ -194,16 +199,18 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
           }
           totalCount += 1.0
       }
-
+      
       eff = singletonCount.value / totalCount.value
       logInfo("Efficiency in cycle " + counter + " is " + eff)
-      counter = counter + 1
-      if ( eff > 0.8) 
+
+      if (eff >= 0.8) {
         effCounter = effCounter + 1
-      else
+      } else {
         effCounter = 0
-    } while ((effCounter < 3 || counter < 4) && ds.count > 40)
-    logInfo("Total number of bad mols are " + badCounter) 
+      }
+      counter = counter + 1
+    } while ((effCounter < 2 || counter < 4) && ds.count > 40)
+
     //Docking rest of the dsOne mols
     val dsDockOne = dsOne
 
