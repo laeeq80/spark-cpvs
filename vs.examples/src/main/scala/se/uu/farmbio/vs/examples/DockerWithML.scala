@@ -7,8 +7,6 @@ import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 
-import openeye.oedocking.OEDockMethod
-import openeye.oedocking.OESearchResolution
 
 /**
  * @author laeeq
@@ -20,8 +18,6 @@ object DockerWithML extends Logging {
     master: String = null,
     conformersFile: String = null,
     topPosesPath: String = null,
-    receptorFile: String = null,
-    oeLicensePath: String = null,
     dsInitSize: Int = 100,
     numIterations: Int = 50,
     topN: Int = 30)
@@ -43,17 +39,10 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
-      arg[String]("<receptor-file>")
-        .required()
-        .text("path to input OEB receptor file")
-        .action((x, c) => c.copy(receptorFile = x))
       arg[String]("<top-poses-path>")
         .required()
         .text("path to top output poses")
         .action((x, c) => c.copy(topPosesPath = x))
-      opt[String]("oeLicensePath")
-        .text("path to OEChem License")
-        .action((x, c) => c.copy(oeLicensePath = x))
       opt[Int]("topN")
         .text("number of top scoring poses to extract (default: 30).")
         .action((x, c) => c.copy(topN = x))
@@ -72,9 +61,7 @@ object DockerWithML extends Logging {
     //Init Spark
     val conf = new SparkConf()
       .setAppName("DockerWithML")
-    if (params.oeLicensePath != null) {
-      conf.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
-    }
+    
     if (params.master != null) {
       conf.setMaster(params.master)
     }
@@ -83,9 +70,7 @@ object DockerWithML extends Logging {
     val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures()
-      .dockWithML(params.receptorFile,
-        OEDockMethod.Chemgauss4,
-        OESearchResolution.Standard,
+      .dockWithML(
         params.dsInitSize,
         params.numIterations)
       .getTopPoses(params.topN)

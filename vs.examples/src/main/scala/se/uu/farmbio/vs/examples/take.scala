@@ -62,7 +62,7 @@ object Take extends Logging {
       .readConformerFile(params.conformersFile)
       .getMolecules
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-      .take(10000)
+      .take(20000)
 
     val pw = new PrintWriter(params.sdfPath)
     mols.foreach(pw.println(_))

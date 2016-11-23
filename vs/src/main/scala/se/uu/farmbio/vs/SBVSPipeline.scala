@@ -54,23 +54,17 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
 
   def getMolecules = rdd
 
-  def readSmilesRDDs(smiles: Seq[RDD[String]]): SBVSPipeline with SmilesTransforms = {
-    new SmilesPipeline(sc.union(smiles))
-  }
+  
 
   def readConformerRDDs(conformers: Seq[RDD[String]]): SBVSPipeline with ConformerTransforms = {
     new ConformerPipeline(sc.union(conformers))
   }
 
   def readPoseRDDs(poses: Seq[RDD[String]], method: Int): SBVSPipeline with PoseTransforms = {
-    new PosePipeline(sc.union(poses), method)
+    new PosePipeline(sc.union(poses))
   }
 
-  def readSmilesFile(path: String): SBVSPipeline with SmilesTransforms = {
-    val rdd = sc.hadoopFile[LongWritable, Text, SmilesInputFormat](path, defaultParallelism)
-      .map(_._2.toString) //convert to string RDD
-    new SmilesPipeline(rdd)
-  }
+  
 
   def readConformerFile(path: String): SBVSPipeline with ConformerTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
@@ -81,7 +75,7 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
   def readPoseFile(path: String, method: Int): SBVSPipeline with PoseTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString)) //convert to string RDD and split
-    new PosePipeline(rdd, method)
+    new PosePipeline(rdd)
   }
 
   def saveAsTextFile(path: String): this.type = {

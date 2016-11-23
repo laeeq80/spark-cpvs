@@ -37,7 +37,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res === sortedPoses)
 
   }
-/*
+
   ignore("collapse should collapse poses with same id to n with highest score") {
 
     val n = 2
@@ -52,66 +52,6 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res.toSet === filteredCollapsed.toSet)
 
   }
-
-  test("filter should filter a set of SMILES according to the provided custom filter") {
-
-    val res = new SBVSPipeline(sc)
-      .readSmilesFile(getClass.getResource("molecules.smi").getPath)
-      .filter(getClass.getResourceAsStream("zinc_filter.txt"))
-      .getMolecules
-      .collect
-
-    val filtered = TestUtils.readSmiles(getClass.getResource("custom_filtered.smi").getPath)
-    assert(res.flatMap(TestUtils.splitSmiles).toSet === filtered.toSet)
-
-  }
-
-  test("filter should filter a set of SMILES according to the provided filter type") {
-
-    val res = new SBVSPipeline(sc)
-      .readSmilesFile(getClass.getResource("molecules.smi").getPath)
-      .filter(OEFilterType.Lead)
-      .getMolecules
-      .collect
-
-    val filtered = TestUtils.readSmiles(getClass.getResource("filtered.smi").getPath)
-    assert(res.flatMap(TestUtils.splitSmiles).toSet === filtered.toSet)
-
-  }
-
-  test("generateConformers should generate conformers from a SMILES file according to a maxCenters parameter") {
-
-    val res = new SBVSPipeline(sc)
-      .readSmilesFile(getClass.getResource("filtered.smi").getPath)
-      .generateConformers(12)
-      .getMolecules
-      .collect
-
-    val filteredConformers = TestUtils.readSDF(getClass.getResource("filtered_conformers.sdf").getPath)
-
-    val resSet = res.flatMap(TestUtils.splitSDF).map(TestUtils.removeSDFheader).toSet
-    val filtTest = filteredConformers.map(TestUtils.removeSDFheader).toSet
-    assert(resSet === filtTest)
-
-  }
-
-  test("generateConformers should generate conformers from a SMILES file according to maxCenters, maxConformers"
-    + " parameters") {
-
-    val res = new SBVSPipeline(sc)
-      .readSmilesFile(getClass.getResource("filtered.smi").getPath)
-      .generateConformers(2, 1)
-      .getMolecules
-      .collect
-
-    val filteredConformers = TestUtils.readSDF(getClass.getResource("filtered_single.sdf").getPath)
-
-    val resSet = res.flatMap(TestUtils.splitSDF).map(TestUtils.removeSDFheader).toSet
-    val filtTest = filteredConformers.map(TestUtils.removeSDFheader).toSet
-    assert(resSet === filtTest)
-
-  }
-
   test("dock should dock a set of conformers to a receptor and generate the poses") {
 
     val res = new SBVSPipeline(sc)
@@ -165,15 +105,13 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(signsBeforeDocking.toSet()
       === signsAfterDocking.toSet())
 
-  }*/
+  }
 
   test("dockWithML should generate the poses in expected format") {
     val molsWithSignAndScore = new SBVSPipeline(sc)
       .readConformerFile(getClass.getResource("100mols.sdf").getPath)
       .generateSignatures
-      .dockWithML(getClass.getResource("receptor.oeb").getPath,
-        OEDockMethod.Chemgauss4,
-        OESearchResolution.Standard,
+      .dockWithML(        
         dsInitSize = 20,
         numIterations = 20)
       .getMolecules

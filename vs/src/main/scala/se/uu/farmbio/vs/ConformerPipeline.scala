@@ -113,7 +113,7 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
   override def dock(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean) = {
     val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, dockTimePerMol, sc, rdd)
     val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
-    new PosePipeline(res, method)
+    new PosePipeline(res)
   }
 
   override def generateSignatures = {
