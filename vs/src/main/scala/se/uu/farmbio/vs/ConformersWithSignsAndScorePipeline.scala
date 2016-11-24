@@ -92,22 +92,12 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOne: RDD[(String)] = null
-    var ds: RDD[String] = rdd
-    var dsComplete: RDD[String] = rdd
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var eff: Double = 0.0
-    var counter: Int = 0
+    var counter: Int = 1
     var effCounter: Int = 0
     var calibrationSizeDynamic: Int = 0
-
-    //Converting complete dataset (dsComplete) to feature vector required for conformal prediction
-    //We also need to keep intact the poses so at the end we know
-    //which molecules are predicted as bad and remove them from main set
-
-    val fvDsComplete = dsComplete.flatMap {
-      sdfmol =>
-        ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
-          .map { case (vector) => (sdfmol, vector) }
-    }
+    var badCounter: Int = 0
 
     do {
 
@@ -164,8 +154,18 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       lpDsTrain.unpersist()
       properTraining.unpersist()
 
+      //Converting SDF main dataset (ds) to feature vector required for conformal prediction
+      //We also need to keep intact the poses so at the end we know
+      //which molecules are predicted as bad and remove them from main set
+
+      val fvDs = ds.flatMap {
+        sdfmol =>
+          ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
+            .map { case (vector) => (sdfmol, vector) }
+      }
+
       //Step 9 Prediction using our model on complete dataset
-      val predictions = fvDsComplete.map {
+      val predictions = fvDs.map {
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
       }
 
@@ -180,13 +180,14 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         .map { case (sdfmol, prediction) => sdfmol }
       val dsEmpty: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set()) }
-        .map { case (sdfmol, prediction) => sdfmol }      
+        .map { case (sdfmol, prediction) => sdfmol }
       logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
       logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
       logInfo("Number of Unknown mols in cycle " + counter + " are " + dsUnknown.count)
       logInfo("Number of Empty mols in cycle " + counter + " are " + dsEmpty.count)
+      badCounter = badCounter + dsZero.count.toInt
       dsZero.unpersist()
-      dsOne.unpersist()
+
       //Computing efficiency for stopping
       val totalCount = sc.accumulator(0.0)
       val singletonCount = sc.accumulator(0.0)
@@ -198,7 +199,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
           }
           totalCount += 1.0
       }
-      
+
       eff = singletonCount.value / totalCount.value
       logInfo("Efficiency in cycle " + counter + " is " + eff)
 
@@ -209,7 +210,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       }
       counter = counter + 1
     } while ((effCounter < 2 || counter < 4) && ds.count > 40)
-
+    logInfo("Total number of bad mols are " + badCounter)
     //Docking rest of the dsOne mols
     val dsDockOne = dsOne
 
@@ -218,7 +219,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       poses = dsDockOne
     else
       poses = poses.union(dsDockOne)
-
+    logInfo("Total number of docked mols are " + poses.count)
     new PosePipeline(poses, method)
 
   }

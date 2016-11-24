@@ -22,7 +22,7 @@ import org.openscience.cdk.interfaces.IAtomContainer
 trait ConformerTransforms {
   def dock(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean = false): SBVSPipeline with PoseTransforms
   def repartition: SBVSPipeline with ConformerTransforms
-  def generateSignatures(): SBVSPipeline with ConformersWithSignsAndScoreTransforms
+  def generateSignatures(): SBVSPipeline with ConformersWithSignsTransforms
 }
 
 object ConformerPipeline extends Logging {
@@ -139,7 +139,7 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
     val res = molAndSparseVector.map {
       case (mol, sign) => ConformerPipeline.writeSignature(mol, sign)
     }
-    new ConformersWithSignsAndScorePipeline(res)
+    new ConformersWithSignsPipeline(res)
   }
 
   override def repartition() = {
