@@ -9,8 +9,6 @@ import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
 import java.io.PrintWriter
 
-import openeye.oedocking.OEDockMethod
-import openeye.oedocking.OESearchResolution
 
 /**
  * @author laeeq
@@ -60,7 +58,7 @@ object Compare extends Logging {
     val sc = new SparkContext(conf)
 
     val mols1 = new SBVSPipeline(sc)
-      .readPoseFile(params.firstFile, OEDockMethod.Chemgauss4)
+      .readPoseFile(params.firstFile)
       .getMolecules
       .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
       
@@ -69,7 +67,7 @@ object Compare extends Logging {
     val Array1 = scores1.take(30)
     
     val mols2 = new SBVSPipeline(sc)
-      .readPoseFile(params.secondFile, OEDockMethod.Chemgauss4)
+      .readPoseFile(params.secondFile)
       .getMolecules
       .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
       

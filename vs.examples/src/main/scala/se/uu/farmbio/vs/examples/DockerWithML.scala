@@ -67,15 +67,15 @@ object DockerWithML extends Logging {
     }
     val sc = new SparkContext(conf)
 
-    val signatures = new SBVSPipeline(sc)
+    val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures()
-      .dockWithML(
-        params.dsInitSize,
+      .dockWithML(params.dsInitSize,
         params.numIterations)
-      .getTopPoses(params.topN)
+    val cachedPoses = poses.getMolecules.cache()
+    val res = poses.getTopPoses(params.topN)
 
-    sc.parallelize(signatures, 1).saveAsTextFile(params.topPosesPath)
+    sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
     sc.stop()
 
   }

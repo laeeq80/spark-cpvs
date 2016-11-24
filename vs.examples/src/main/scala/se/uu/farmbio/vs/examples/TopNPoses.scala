@@ -4,7 +4,6 @@ import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 
-import openeye.oedocking.OEDockMethod
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 
@@ -51,16 +50,14 @@ object TopNPoses extends Logging {
     //Init Spark
     val conf = new SparkConf()
       .setAppName("TopNPoses")
-    if (params.oeLicensePath != null) {
-      conf.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
-    }
+    
     if (params.master != null) {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
 
     val res = new SBVSPipeline(sc)
-      .readPoseFile(params.poseFile, OEDockMethod.Chemgauss4)
+      .readPoseFile(params.poseFile)
       .getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)

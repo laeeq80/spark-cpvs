@@ -7,9 +7,6 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
 
-import openeye.oedocking.OEDockMethod
-import openeye.oedocking.OESearchResolution
-import openeye.oemolprop.OEFilterType
 import se.uu.farmbio.parsers.SDFRecordReader
 import se.uu.farmbio.parsers.SmilesRecordReader
 
@@ -28,7 +25,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
   ignore("sortByScore should sort a set of poses by score") {
 
     val res = new SBVSPipeline(sc)
-      .readPoseFile(getClass.getResource("filtered_collapsed.sdf").getPath, OEDockMethod.Chemgauss4)
+      .readPoseFile(getClass.getResource("filtered_collapsed.sdf").getPath)
       .sortByScore
       .getMolecules
       .collect
@@ -43,7 +40,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     val n = 2
 
     val res = new SBVSPipeline(sc)
-      .readPoseFile(getClass.getResource("filtered_poses.sdf").getPath, OEDockMethod.Chemgauss4)
+      .readPoseFile(getClass.getResource("filtered_poses.sdf").getPath)
       .collapse(n)
       .getMolecules
       .collect
@@ -52,6 +49,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res.toSet === filteredCollapsed.toSet)
 
   }
+  /*
   test("dock should dock a set of conformers to a receptor and generate the poses") {
 
     val res = new SBVSPipeline(sc)
@@ -66,18 +64,19 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
       === dockedMolecules.map(TestUtils.removeSDFheader).toSet)
 
   }
-
+*/
+  
   test("getTopPoses should return the topN poses") {
     val topN = 10
     val res = new SBVSPipeline(sc)
-      .readPoseFile(getClass.getResource("unsorted_poses.sdf").getPath, OEDockMethod.Chemgauss4)
+      .readPoseFile(getClass.getResource("unsorted_poses.sdf").getPath)
       .getTopPoses(topN)
 
     val topCollapsed = TestUtils.readSDF(getClass.getResource("top_collapsed.sdf").getPath)
     assert(res.map(TestUtils.removeSDFheader) === topCollapsed.map(TestUtils.removeSDFheader))
 
   }
-
+/*
   test("Signatures are maintained(not lost) after docking") {
 
     val molWithSigns = new SBVSPipeline(sc)
@@ -105,7 +104,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(signsBeforeDocking.toSet()
       === signsAfterDocking.toSet())
 
-  }
+  }*/
 
   test("dockWithML should generate the poses in expected format") {
     val molsWithSignAndScore = new SBVSPipeline(sc)

@@ -16,8 +16,6 @@ import org.openscience.cdk.silent.ChemFile
 import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
 
-import openeye.oechem.OEErrorLevel
-
 private[vs] object SBVSPipeline {
 
   def splitSDFmolecules(molecules: String) = {
@@ -48,13 +46,8 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
 
   protected val sc = rdd.context
   protected val defaultParallelism = sc.getConf.get("spark.default.parallelism", "2").toInt
-  protected val oeErrorLevel =
-    sc.getConf.get("oechem.error.level", OEErrorLevel.Error.toString).toInt
-  logDebug(s"OEChem error level is: $oeErrorLevel")
 
   def getMolecules = rdd
-
-  
 
   def readConformerRDDs(conformers: Seq[RDD[String]]): SBVSPipeline with ConformerTransforms = {
     new ConformerPipeline(sc.union(conformers))
@@ -64,15 +57,13 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
     new PosePipeline(sc.union(poses))
   }
 
-  
-
   def readConformerFile(path: String): SBVSPipeline with ConformerTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
       .map(_._2.toString) //convert to string RDD
     new ConformerPipeline(rdd)
   }
 
-  def readPoseFile(path: String, method: Int): SBVSPipeline with PoseTransforms = {
+  def readPoseFile(path: String): SBVSPipeline with PoseTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString)) //convert to string RDD and split
     new PosePipeline(rdd)

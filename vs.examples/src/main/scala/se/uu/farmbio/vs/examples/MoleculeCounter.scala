@@ -8,8 +8,6 @@ import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import java.io.PrintWriter
 
-import openeye.oedocking.OEDockMethod
-import openeye.oedocking.OESearchResolution
 
 /**
  * @author laeeq
