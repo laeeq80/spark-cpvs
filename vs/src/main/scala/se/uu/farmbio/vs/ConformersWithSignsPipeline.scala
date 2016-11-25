@@ -98,7 +98,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var effCounter: Int = 0
     var calibrationSizeDynamic: Int = 0
     var badCounter: Int = 0
- 
+
     do {
 
       //Step 1
@@ -179,12 +179,12 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
       logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
-      logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)  
+      logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
       badCounter = badCounter + dsZero.count.toInt
       //Step 10 Subtracting {0} moles from dataset
       ds = ds.subtract(dsZero)
       dsZero.unpersist()
-     
+
       //Computing efficiency for stopping
       val totalCount = sc.accumulator(0.0)
       val singletonCount = sc.accumulator(0.0)
@@ -205,7 +205,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       else
         effCounter = 0
     } while ((effCounter < 2 || counter < 5) && ds.count > 40)
-    logInfo("Total number of bad mols are " + badCounter)    
+    logInfo("Total number of bad mols are " + badCounter)
     //Docking rest of the dsOne mols
     val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, false, sc, dsOne)
       //Removing empty molecules caused by oechem optimization problem
@@ -216,7 +216,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       poses = dsDockOne
     else
       poses = poses.union(dsDockOne)
-    
+
     new PosePipeline(poses)
 
   }

@@ -58,8 +58,8 @@ object ConformersWithSignsAndScorePipeline extends Serializable {
     while (it.hasNext()) {
       val mol = it.next
       val label = score match { //convert labels
-        case x if x >= scoreHistogram(7) && x <= scoreHistogram(10) => 1.0
-        case x if x >= scoreHistogram(0) && x <= scoreHistogram(1) => 0.0
+        case score if score >= scoreHistogram(7) && score <= scoreHistogram(10) => 1.0
+        case score if score >= scoreHistogram(0) && score <= scoreHistogram(1) => 0.0
         case _ => "NAN"
       }
 

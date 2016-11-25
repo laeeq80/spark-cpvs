@@ -6,8 +6,8 @@ import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
+import se.uu.farmbio.vs.PosePipeline
 import java.io.PrintWriter
-
 
 /**
  * @author laeeq
@@ -60,10 +60,11 @@ object Take extends Logging {
       .readConformerFile(params.conformersFile)
       .getMolecules
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-      .take(20000)
-
+    val parseScoreRDD = mols.map(PosePipeline.parseScore).cache
+    val parseScoreHistogram = parseScoreRDD.histogram(10) // _.1 countains Range and _.2 contains Number of items in range
+    
     val pw = new PrintWriter(params.sdfPath)
-    mols.foreach(pw.println(_))
+    parseScoreHistogram._2.foreach(pw.println(_))
     pw.close
 
     sc.stop()
