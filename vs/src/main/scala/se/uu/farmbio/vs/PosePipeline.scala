@@ -24,17 +24,16 @@ private[vs] object PosePipeline extends Logging {
     val id: String = parseId(pose)
     //Sometimes OEChem produce molecules with empty score or malformed molecules
     //We use try catch block for those exceptions
-    
-      
-      var res: String = null
-      val it = SBVSPipeline.CDKInit(pose)
-      if (it.hasNext()) {
-        val mol = it.next
-        res = mol.getProperty("Chemgauss4")
 
-      }
-      score = res.toDouble
-    
+    var res: String = null
+    val it = SBVSPipeline.CDKInit(pose)
+    if (it.hasNext()) {
+      val mol = it.next
+      res = mol.getProperty("Chemgauss4")
+
+    }
+    score = res.toDouble
+
     (id, score)
 
   }
@@ -43,15 +42,15 @@ private[vs] object PosePipeline extends Logging {
     var result: Double = Double.MinValue
     //Sometimes OEChem produce molecules with empty score or malformed molecules
     //We use try catch block for those exceptions
-   
-      var res: String = null
-      val it = SBVSPipeline.CDKInit(pose)
-      if (it.hasNext()) {
-        val mol = it.next
-        res = mol.getProperty("Chemgauss4")
-      }
-      result = res.toDouble
-    
+
+    var res: String = null
+    val it = SBVSPipeline.CDKInit(pose)
+    if (it.hasNext()) {
+      val mol = it.next
+      res = mol.getProperty("Chemgauss4")
+    }
+    result = res.toDouble
+
     result
   }
 
@@ -67,12 +66,10 @@ private[vs] class PosePipeline(override val rdd: RDD[String]) extends SBVSPipeli
 
   // Need a local copy due to serialization error 
   // http://spark-summit.org/wp-content/uploads/2013/10/McDonough-spark-tutorial_spark-summit-2013.pptx
-  //val methodBroadcast = rdd.sparkContext.broadcast(scoreMethod)
 
   override def getTopPoses(topN: Int) = {
     val cachedRDD = rdd.cache()
-    //val methodBroadcastLocal = methodBroadcast
-    //val method = methodBroadcastLocal.value
+   
     //Parsing id and Score in parallel and collecting data to driver
     val idAndScore = cachedRDD.map {
       case (mol) => PosePipeline.parseIdAndScore(mol)
@@ -102,8 +99,7 @@ private[vs] class PosePipeline(override val rdd: RDD[String]) extends SBVSPipeli
         mol => -PosePipeline.parseScore(mol)
       }
   }
-  
-  
+
   @deprecated("Spark sortBy is slow, use getTopPoses instead", "Sep 29, 2016")
   override def sortByScore = {
     val res = rdd.sortBy(PosePipeline
