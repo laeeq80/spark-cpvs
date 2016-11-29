@@ -73,17 +73,28 @@ object Take extends Logging {
     }
 
     val groupMolByBin = idAndMol.groupBy { case (id, mol) => id }
+
     val sample = groupMolByBin
-      .mapValues {
-        idAndMol =>
-          VSUtils
-            .takeSample(idAndMol, 1234, ((idAndMol.size) * 0.1).toInt)
-            .map { case (id, mol) => mol }.mkString
+      .mapValues { idAndMol =>
+        VSUtils.takeSample(idAndMol, 1234, ((idAndMol.size) * 0.1).toInt)
+          .map { case (id, mol) => mol }.mkString
       }.map { case (id, mol) => mol }
       .filter(_.nonEmpty)
-      .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim)
+      .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim).cache()
 
     sample.saveAsTextFile(params.sdfPath)
+
+    val sample2 = groupMolByBin
+      .filter { case (id, idAndMol) => (id >= 9.0) }
+      .mapValues { idAndMol =>
+        VSUtils.takeSample(idAndMol, 1234, ((idAndMol.size) * 0.5).toInt)
+          .map { case (id, mol) => mol }.mkString
+      }.map { case (id, mol) => mol }
+      .filter(_.nonEmpty)
+      .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim).cache()
+
+    sample2.saveAsTextFile("data/sample2.txt")
+    sample.union(sample2).saveAsTextFile("data/union.txt")
     //val pw = new PrintWriter(params.sdfPath)
     //parseScoreHistogram._2.foreach(pw.println(_))
     //pw.close

@@ -28,11 +28,10 @@ private[vs] object VSUtils {
     (groupId, sdfRecord)
 
   }
-  
-  def takeSample(idAndMol:  Iterable[(Double, String)],seed:Long, n: Int)={
-    
+
+  def takeSample(idAndMol: Iterable[(Double, String)], seed: Long, n: Int) = {
     val r = new Random(seed)
-        r.shuffle(idAndMol).take(n)
+    r.shuffle(idAndMol).take(n)
   }
 }
 
