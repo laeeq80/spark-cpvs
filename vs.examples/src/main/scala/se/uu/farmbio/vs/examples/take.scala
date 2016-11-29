@@ -9,6 +9,8 @@ import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
 import java.io.PrintWriter
 
+import se.uu.farmbio.vs.VSUtils
+
 /**
  * @author laeeq
  */
@@ -61,11 +63,30 @@ object Take extends Logging {
       .getMolecules
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
     val parseScoreRDD = mols.map(PosePipeline.parseScore).cache
-    val parseScoreHistogram = parseScoreRDD.histogram(10) // _.1 countains Range and _.2 contains Number of items in range
-    
-    val pw = new PrintWriter(params.sdfPath)
-    parseScoreHistogram._2.foreach(pw.println(_))
-    pw.close
+
+    // _.1 contains Range and _.2 contains Number of items in range
+    val parseScoreHistogram = parseScoreRDD.histogram(10)
+    val idAndMol = mols.map {
+      case (mol) =>
+        val score = PosePipeline.parseScore(mol)
+        VSUtils.assignGroup(mol, score, parseScoreHistogram._1)
+    }
+
+    val groupMolByBin = idAndMol.groupBy { case (id, mol) => id }
+    val sample = groupMolByBin
+      .mapValues {
+        idAndMol =>
+          VSUtils
+            .takeSample(idAndMol, 1234, ((idAndMol.size) * 0.1).toInt)
+            .map { case (id, mol) => mol }.mkString
+      }.map { case (id, mol) => mol }
+      .filter(_.nonEmpty)
+      .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim)
+
+    sample.saveAsTextFile(params.sdfPath)
+    //val pw = new PrintWriter(params.sdfPath)
+    //parseScoreHistogram._2.foreach(pw.println(_))
+    //pw.close
 
     sc.stop()
 
