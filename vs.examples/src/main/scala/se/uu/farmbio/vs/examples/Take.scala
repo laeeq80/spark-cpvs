@@ -4,6 +4,7 @@ import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
+import org.apache.spark.rdd.RDD
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
@@ -70,8 +71,52 @@ object Take extends Logging {
       case (mol) =>
         val score = PosePipeline.parseScore(mol)
         VSUtils.assignGroup(mol, score, parseScoreHistogram._1)
-    }
+    }.cache()
+    
+    val sample1 = idAndMol.filter { case (id, mol) => (id == 1.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.05, 1234)
+    val sample2 = idAndMol.filter { case (id, mol) => (id == 2.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.05, 1234)
+    val sample3 = idAndMol.filter { case (id, mol) => (id == 3.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.05, 1234)
+    val sample4 = idAndMol.filter { case (id, mol) => (id == 4.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.05, 1234)
+    val sample5 = idAndMol.filter { case (id, mol) => (id == 5.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.05, 1234)
+    val sample6 = idAndMol.filter { case (id, mol) => (id == 6.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.05, 1234)
+    val sample7 = idAndMol.filter { case (id, mol) => (id == 7.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.05, 1234)
+    val sample8 = idAndMol.filter { case (id, mol) => (id == 8.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.05, 1234)
+    val sample9 = idAndMol.filter { case (id, mol) => (id == 9.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.5, 1234)
+    val sample10 = idAndMol.filter { case (id, mol) => (id == 10.0) }
+      .map { case (id, mol) => mol }.sample(false, 0.5, 1234)
+    
+    val sample = sample1.union(sample2).union(sample3).union(sample4).union(sample5)
+    .union(sample6).union(sample7).union(sample8).union(sample9).union(sample10)
+    
+    sample.saveAsTextFile(params.sdfPath)
+    
+    /*
+    //Sampling first 8 bins
+    var oldSample: RDD[String] = null
+    var counter: Double = 0.0
+    var newSample: RDD[String] = null
+    do {
+      counter = counter + 1.0
+      newSample = idAndMol.filter { case (id, mol) => (id == counter) }
+        .map { case (id, mol) => mol }.sample(false, 0.1, 1234)
+      if (oldSample == null)
+        oldSample = newSample
+      else
+        oldSample = oldSample.union(newSample)
+    } while (counter <= 8.0)
 
+    oldSample.saveAsTextFile(params.sdfPath)
+*/
+    /*
     val groupMolByBin = idAndMol.groupBy { case (id, mol) => id }
 
     val sample = groupMolByBin
@@ -93,7 +138,7 @@ object Take extends Logging {
       .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim)
 
     sample.union(sample2).saveAsTextFile(params.sdfPath)
-
+*/
     sc.stop()
 
   }
