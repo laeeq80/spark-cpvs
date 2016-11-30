@@ -62,7 +62,7 @@ object Take extends Logging {
       .readConformerFile(params.conformersFile)
       .getMolecules
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-    val parseScoreRDD = mols.map(PosePipeline.parseScore).cache
+    val parseScoreRDD = mols.map(PosePipeline.parseScore).cache()
 
     // _.1 contains Range and _.2 contains Number of items in range
     val parseScoreHistogram = parseScoreRDD.histogram(10)
@@ -75,14 +75,15 @@ object Take extends Logging {
     val groupMolByBin = idAndMol.groupBy { case (id, mol) => id }
 
     val sample = groupMolByBin
+      .filter { case (id, idAndMol) => (id < 9.0) }
       .mapValues { idAndMol =>
-        VSUtils.takeSample(idAndMol, 1234, ((idAndMol.size) * 0.1).toInt)
+        VSUtils.takeSample(idAndMol, 1234, ((idAndMol.size) * 0.05).toInt)
           .map { case (id, mol) => mol }.mkString
       }.map { case (id, mol) => mol }
       .filter(_.nonEmpty)
-      .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim).cache()
+      .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim)
 
-    sample.saveAsTextFile(params.sdfPath)
+    groupMolByBin.saveAsTextFile(params.sdfPath)
 
     val sample2 = groupMolByBin
       .filter { case (id, idAndMol) => (id >= 9.0) }
@@ -91,13 +92,9 @@ object Take extends Logging {
           .map { case (id, mol) => mol }.mkString
       }.map { case (id, mol) => mol }
       .filter(_.nonEmpty)
-      .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim).cache()
+      .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim)
 
-    sample2.saveAsTextFile("data/sample2.txt")
-    sample.union(sample2).saveAsTextFile("data/union.txt")
-    //val pw = new PrintWriter(params.sdfPath)
-    //parseScoreHistogram._2.foreach(pw.println(_))
-    //pw.close
+    sample.union(sample2).saveAsTextFile(params.sdfPath)
 
     sc.stop()
 
