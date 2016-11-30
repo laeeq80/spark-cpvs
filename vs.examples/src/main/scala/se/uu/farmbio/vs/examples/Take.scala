@@ -83,8 +83,6 @@ object Take extends Logging {
       .filter(_.nonEmpty)
       .flatMap(x => SBVSPipeline.splitSDFmolecules(x)).map(_.trim)
 
-    groupMolByBin.saveAsTextFile(params.sdfPath)
-
     val sample2 = groupMolByBin
       .filter { case (id, idAndMol) => (id >= 9.0) }
       .mapValues { idAndMol =>
