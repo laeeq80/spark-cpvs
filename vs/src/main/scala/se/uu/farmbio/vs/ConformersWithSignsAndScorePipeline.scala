@@ -93,7 +93,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var calibrationSizeDynamic: Int = 0
     var badCounter: Int = 0
 
-    do {
+    //do {
 
       //Step 1
       //Get a sample of the data
@@ -130,6 +130,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         dsTrain = dsTopAndBottom
       else
         dsTrain = dsTrain.union(dsTopAndBottom)
+      logInfo("Training set size in cycle " + counter + " is " + dsTrain.count)
 
       //Converting SDF training set to LabeledPoint required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
@@ -204,7 +205,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         effCounter = effCounter + 1
       else
         effCounter = 0
-    } while ((effCounter < 2 || counter < 5) && ds.count > 40)
+    //} while ((effCounter < 2 || counter < 5) && ds.count > 40)
     logInfo("Total number of bad mols are " + badCounter)
 
     //Docking rest of the dsOne mols

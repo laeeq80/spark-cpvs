@@ -30,11 +30,11 @@ object Compare extends Logging {
         .action((x, c) => c.copy(master = x))
       arg[String]("<first-file>")
         .required()
-        .text("path to input first file")
+        .text("path to input file with top 30 mols")
         .action((x, c) => c.copy(firstFile = x))
       arg[String]("<second-file>")
         .required()
-        .text("path to input second file")
+        .text("path to input file that you want to check")
         .action((x, c) => c.copy(secondFile = x))
     }
 
