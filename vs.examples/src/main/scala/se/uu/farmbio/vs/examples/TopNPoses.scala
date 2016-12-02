@@ -12,7 +12,6 @@ object TopNPoses extends Logging {
     master: String = null,
     poseFile: String = null,
     topPosesPath: String = null,
-    oeLicensePath: String = null,
     topN: Int = 30)
 
   def main(args: Array[String]) {
@@ -22,9 +21,6 @@ object TopNPoses extends Logging {
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
-      opt[String]("oeLicensePath")
-        .text("path to OEChem License")
-        .action((x, c) => c.copy(oeLicensePath = x))
       opt[Int]("n")
         .text("number of top scoring poses to extract (default: 30).")
         .action((x, c) => c.copy(topN = x))
