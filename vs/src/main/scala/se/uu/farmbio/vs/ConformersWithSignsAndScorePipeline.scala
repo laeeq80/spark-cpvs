@@ -93,7 +93,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var calibrationSizeDynamic: Int = 0
     var badCounter: Int = 0
 
-    //do {
+    do {
 
       //Step 1
       //Get a sample of the data
@@ -140,7 +140,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 8 Training
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
-      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.coalesce(42).cache, calibrationSizeDynamic)
+      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.coalesce(4).cache, calibrationSizeDynamic)
 
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
@@ -171,15 +171,13 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
       val dsUnknown: RDD[(String)] = predictions
-        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
+        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0) || prediction == Set()) }
         .map { case (sdfmol, prediction) => sdfmol }
-      val dsEmpty: RDD[(String)] = predictions
-        .filter { case (sdfmol, prediction) => (prediction == Set()) }
-        .map { case (sdfmol, prediction) => sdfmol }
+      
       logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
       logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
       logInfo("Number of Unknown mols in cycle " + counter + " are " + dsUnknown.count)
-      logInfo("Number of Empty mols in cycle " + counter + " are " + dsEmpty.count)
+      
       badCounter = badCounter + dsZero.count.toInt
       
       //Step 10 Subtracting {0} moles from dataset
@@ -205,7 +203,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         effCounter = effCounter + 1
       else
         effCounter = 0
-    //} while ((effCounter < 2 || counter < 5) && ds.count > 40)
+    } while ((effCounter < 2 || counter < 5) && ds.count > 40)
     logInfo("Total number of bad mols are " + badCounter)
 
     //Docking rest of the dsOne mols

@@ -178,6 +178,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       dsOne = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
+      
       logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
       logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
       badCounter = badCounter + dsZero.count.toInt
