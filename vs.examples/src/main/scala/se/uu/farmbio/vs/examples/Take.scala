@@ -8,21 +8,24 @@ import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import java.io.PrintWriter
 
+import openeye.oedocking.OEDockMethod
+import openeye.oedocking.OESearchResolution
+
 /**
  * @author laeeq
  */
 
-object SingleFile extends Logging {
+object Take extends Logging {
 
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
-    filePath: String = null)
+    sdfPath: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
-    val parser = new OptionParser[Arglist]("SingleFile") {
-      head("Converting file with blocks into single file")
+    val parser = new OptionParser[Arglist]("Take") {
+      head("Counts number of molecules in conformer file")
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
@@ -30,10 +33,10 @@ object SingleFile extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
-      arg[String]("<single-file-Path>")
+      arg[String]("<sdf-Path>")
         .required()
-        .text("path to save single file")
-        .action((x, c) => c.copy(filePath = x))
+        .text("path to subset SDF file")
+        .action((x, c) => c.copy(sdfPath = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -48,7 +51,7 @@ object SingleFile extends Logging {
 
     //Init Spark
     val conf = new SparkConf()
-      .setAppName("SingleFile")
+      .setAppName("Take")
 
     if (params.master != null) {
       conf.setMaster(params.master)
@@ -59,9 +62,9 @@ object SingleFile extends Logging {
       .readConformerFile(params.conformersFile)
       .getMolecules
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-      .collect()
+      .takeSample(false, 10000, 1234)
 
-    val pw = new PrintWriter(params.filePath)
+    val pw = new PrintWriter(params.sdfPath)
     mols.foreach(pw.println(_))
     pw.close
 
