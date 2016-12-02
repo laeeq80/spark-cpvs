@@ -144,7 +144,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
       }
-
+            
       //Step 8 Training
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
