@@ -15,7 +15,7 @@ import openeye.oedocking.OESearchResolution
  * @author laeeq
  */
 
-object Take extends Logging {
+object TakeSample extends Logging {
 
   case class Arglist(
     master: String = null,
@@ -24,8 +24,8 @@ object Take extends Logging {
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
-    val parser = new OptionParser[Arglist]("Take") {
-      head("Counts number of molecules in conformer file")
+    val parser = new OptionParser[Arglist]("TakeSample") {
+      head("Creates Sample set as required")
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
@@ -51,7 +51,7 @@ object Take extends Logging {
 
     //Init Spark
     val conf = new SparkConf()
-      .setAppName("Take")
+      .setAppName("TakeSample")
 
     if (params.master != null) {
       conf.setMaster(params.master)
