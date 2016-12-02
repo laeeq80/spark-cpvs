@@ -20,7 +20,8 @@ object TakeSample extends Logging {
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
-    sdfPath: String = null)
+    sdfPath: String = null,
+    sampleSize: Int = 100)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -29,6 +30,9 @@ object TakeSample extends Logging {
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
+      opt[Int]("sampleSize")
+        .text("Size of Sample (default: 100)")
+        .action((x, c) => c.copy(sampleSize = x))
       arg[String]("<conformers-file>")
         .required()
         .text("path to input SDF conformers file")
@@ -62,7 +66,7 @@ object TakeSample extends Logging {
       .readConformerFile(params.conformersFile)
       .getMolecules
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-      .takeSample(false, 10000, 1234)
+      .takeSample(false, params.sampleSize, 1234)
 
     val pw = new PrintWriter(params.sdfPath)
     mols.foreach(pw.println(_))
