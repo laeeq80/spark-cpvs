@@ -16,7 +16,7 @@ import se.uu.farmbio.vs.VSUtils
  * @author laeeq
  */
 
-object Take extends Logging {
+object SampleSet extends Logging {
 
   case class Arglist(
     master: String = null,
@@ -25,8 +25,8 @@ object Take extends Logging {
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
-    val parser = new OptionParser[Arglist]("Take") {
-      head("Counts number of molecules in conformer file")
+    val parser = new OptionParser[Arglist]("SampleSet") {
+      head("Take sample from Each bin and create a sample dataset")
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
@@ -52,7 +52,7 @@ object Take extends Logging {
 
     //Init Spark
     val conf = new SparkConf()
-      .setAppName("Take")
+      .setAppName("SampleSet")
 
     if (params.master != null) {
       conf.setMaster(params.master)
