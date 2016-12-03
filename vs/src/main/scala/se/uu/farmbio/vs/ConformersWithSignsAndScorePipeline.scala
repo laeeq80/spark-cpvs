@@ -86,7 +86,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOne: RDD[(String)] = null
-    var ds: RDD[String] =  rdd
+    var ds: RDD[String] =  rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var eff: Double = 0.0
     var counter: Int = 1
     var effCounter: Int = 0

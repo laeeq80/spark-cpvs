@@ -6,7 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
-
+import se.uu.farmbio.vs.ConformersWithSignsAndScorePipeline
 
 /**
  * @author laeeq
@@ -69,11 +69,13 @@ object DockerWithML extends Logging {
 
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-      .generateSignatures()
+      .getMolecules
+      //.generateSignatures()
+    
+    val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)  
       .dockWithML(params.dsInitSize,
         params.numIterations)
-    val cachedPoses = poses.getMolecules.cache()
-    val res = poses.getTopPoses(params.topN)
+    val res = posesWithSigns.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
     sc.stop()
