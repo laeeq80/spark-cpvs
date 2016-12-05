@@ -38,6 +38,8 @@ object ConformersWithSignsPipeline extends Serializable {
 
     res //return the labeledPoint
   }
+  
+  
 
   private def getFeatureVector(poses: String) = {
     val it = SBVSPipeline.CDKInit(poses)

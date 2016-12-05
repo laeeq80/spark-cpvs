@@ -16,7 +16,25 @@ trait ConformersWithSignsAndScoreTransforms {
     numIterations: Int): SBVSPipeline with PoseTransforms
 }
 
-object ConformersWithSignsAndScorePipeline extends Serializable {
+private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
+
+  def getLPRDD_Score(poses: String) = {
+    val it = SBVSPipeline.CDKInit(poses)
+
+    var res = Seq[(LabeledPoint)]()
+
+    while (it.hasNext()) {
+      //for each molecule in the record compute the signature
+
+      val mol = it.next
+      val label: String = mol.getProperty("Chemgauss4")
+      val doubleLabel: Double = label.toDouble
+      val labeledPoint = new LabeledPoint(doubleLabel, Vectors.parse(mol.getProperty("Signature")))
+      res = res ++ Seq(labeledPoint)
+    }
+
+    res //return the labeledPoint
+  }
 
   private def getLPRDD(poses: String) = {
     val it = SBVSPipeline.CDKInit(poses)
@@ -86,7 +104,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOne: RDD[(String)] = null
-    var ds: RDD[String] =  rdd.flatMap(SBVSPipeline.splitSDFmolecules)
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var eff: Double = 0.0
     var counter: Int = 1
     var effCounter: Int = 0
@@ -173,17 +191,17 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       val dsUnknown: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0) || prediction == Set()) }
         .map { case (sdfmol, prediction) => sdfmol }
-      
+
       logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
       logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
       logInfo("Number of Unknown mols in cycle " + counter + " are " + dsUnknown.count)
-      
+
       badCounter = badCounter + dsZero.count.toInt
-      
+
       //Step 10 Subtracting {0} moles from dataset
       ds = ds.subtract(dsZero)
       dsZero.unpersist()
-      
+
       //Computing efficiency for stopping
       val totalCount = sc.accumulator(0.0)
       val singletonCount = sc.accumulator(0.0)

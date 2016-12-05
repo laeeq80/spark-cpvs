@@ -4,8 +4,10 @@ import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
+import org.apache.spark.mllib.util.MLUtils
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
+import se.uu.farmbio.vs.ConformersWithSignsAndScorePipeline
 import java.io.PrintWriter
 
 
@@ -13,32 +15,28 @@ import java.io.PrintWriter
  * @author laeeq
  */
 
-object TakeSample extends Logging {
+object ConvertToLibSVM extends Logging {
 
   case class Arglist(
     master: String = null,
-    conformersFile: String = null,
-    sdfPath: String = null,
-    sampleSize: Int = 100)
+    poseFile: String = null,
+    libSvmFile: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
-    val parser = new OptionParser[Arglist]("TakeSample") {
-      head("Creates Sample set as required")
+    val parser = new OptionParser[Arglist]("ConvertToLibSVM") {
+      head("Converts Pose File with signatures to LibSVM format")
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
-      opt[Int]("sampleSize")
-        .text("Size of Sample (default: 100)")
-        .action((x, c) => c.copy(sampleSize = x))
-      arg[String]("<conformers-file>")
+      arg[String]("<Pose-file>")
         .required()
-        .text("path to input SDF conformers file")
-        .action((x, c) => c.copy(conformersFile = x))
-      arg[String]("<sdf-Path>")
+        .text("path to input Pose file")
+        .action((x, c) => c.copy(poseFile = x))
+      arg[String]("<libSVMFile-Path>")
         .required()
-        .text("path to subset SDF file")
-        .action((x, c) => c.copy(sdfPath = x))
+        .text("output path for libSVM file")
+        .action((x, c) => c.copy(libSvmFile = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -61,15 +59,12 @@ object TakeSample extends Logging {
     val sc = new SparkContext(conf)
 
     val mols = new SBVSPipeline(sc)
-      .readConformerFile(params.conformersFile)
+      .readPoseFile(params.poseFile)
       .getMolecules
-      .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-      .takeSample(false, params.sampleSize, 1234)
-
-    val pw = new PrintWriter(params.sdfPath)
-    mols.foreach(pw.println(_))
-    pw.close
-
+      
+    val libSVMMols = mols.flatMap { mol => ConformersWithSignsAndScorePipeline.getLPRDD_Score(mol) }
+    val singlePartition = libSVMMols.repartition(1)
+    MLUtils.saveAsLibSVMFile(singlePartition, params.libSvmFile)
     sc.stop()
 
   }
