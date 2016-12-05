@@ -104,12 +104,25 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOne: RDD[(String)] = null
+    var cumulativeDsZero: RDD[(String)] = null
+    var cumulativeSubtracted: RDD[(String)] = null
     var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
+    var dsComplete: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).cache()
     var eff: Double = 0.0
     var counter: Int = 1
     var effCounter: Int = 0
     var calibrationSizeDynamic: Int = 0
     var badCounter: Int = 0
+
+    //Converting complete dataset (dsComplete) to feature vector required for conformal prediction
+    //We also need to keep intact the poses so at the end we know
+    //which molecules are predicted as bad and remove them from main set
+
+    val fvDsComplete = dsComplete.flatMap {
+      sdfmol =>
+        ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
+          .map { case (vector) => (sdfmol, vector) }
+    }
 
     do {
 
@@ -167,18 +180,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       lpDsTrain.unpersist()
       properTraining.unpersist()
 
-      //Converting SDF main dataset (ds) to feature vector required for conformal prediction
-      //We also need to keep intact the poses so at the end we know
-      //which molecules are predicted as bad and remove them from main set
-
-      val fvDs = ds.flatMap {
-        sdfmol =>
-          ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
-            .map { case (vector) => (sdfmol, vector) }
-      }
-
       //Step 9 Prediction using our model
-      val predictions = fvDs.map {
+      val predictions = fvDsComplete.map {
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
       }
 
@@ -198,8 +201,27 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       badCounter = badCounter + dsZero.count.toInt
 
-      //Step 10 Subtracting {0} moles from dataset
+      //Keeping All previous subtracted
+      if (cumulativeSubtracted == null) {
+        if (cumulativeDsZero == null) {
+          cumulativeSubtracted = dsInit
+        } else {
+          cumulativeSubtracted = dsInit.union(cumulativeDsZero)
+        }
+      } else {
+        cumulativeSubtracted = cumulativeSubtracted.union(dsInit.union(cumulativeDsZero))
+      }
+
+      //Step 10 Subtracting {0} moles from dataset which has not been previously subtracted
+      //val dsZeroToSubtract = dsZero.filter{parseIdAndScore != cumulativeSubtracted.parseIdAndScore}
       ds = ds.subtract(dsZero)
+
+      //Keeping all previous removed bad mols
+      if (cumulativeDsZero == null)
+        cumulativeDsZero = dsZero
+      else
+        cumulativeDsZero = cumulativeDsZero.union(dsZero)
+
       dsZero.unpersist()
 
       //Computing efficiency for stopping
