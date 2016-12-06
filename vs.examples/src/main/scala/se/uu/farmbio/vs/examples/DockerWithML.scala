@@ -61,7 +61,7 @@ object DockerWithML extends Logging {
     //Init Spark
     val conf = new SparkConf()
       .setAppName("DockerWithML")
-    
+
     if (params.master != null) {
       conf.setMaster(params.master)
     }
@@ -70,9 +70,9 @@ object DockerWithML extends Logging {
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .getMolecules
-      //.generateSignatures()
-    
-    val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)  
+    //.generateSignatures()
+
+    val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
       .dockWithML(params.dsInitSize,
         params.numIterations)
     val res = posesWithSigns.getTopPoses(params.topN)
