@@ -135,7 +135,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 3
       //Mocking the sampled dataset. We already have scores, docking not required
       val dsDock = dsInit
-
+      logInfo("dsInit in cycle " + counter + " is " + dsInit.count)
+      
       //Step 4
       //Keeping processed poses
       if (poses == null)
@@ -221,9 +222,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         effCounter = effCounter + 1
       else
         effCounter = 0
-    } while ((effCounter < 2 || counter < 5) && ds.count > 40)
-    logInfo("Total number of bad mols are " + badCounter)
-    
+    } while ((effCounter < 2 || counter < 5) && ds.count > 20)
+     
     //Docking rest of the dsOne mols
     val dsDockOne = dsOne
 
