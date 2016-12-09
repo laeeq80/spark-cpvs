@@ -103,7 +103,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     //initializations
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
-    var dsOne: RDD[(String)] = null
+    var dsOnePredicted: RDD[(String)] = null
+    var dsZeroRemoved:RDD[(String)] = null
+    var cumulativeZeroRemoved: RDD[(String)] = null
     var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var dsComplete: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var eff: Double = 0.0
@@ -185,24 +187,38 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
       }
 
-      val dsZero: RDD[(String)] = predictions
+      val dsZeroPredicted: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
-      dsOne = predictions
+      dsOnePredicted = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
-      val dsUnknown: RDD[(String)] = predictions
+      val dsUnknownPredicted: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0) || prediction == Set()) }
         .map { case (sdfmol, prediction) => sdfmol }
 
-      logInfo("Number of bad mols in cycle " + counter + " are " + dsZero.count)
-      logInfo("Number of good mols in cycle " + counter + " are " + dsOne.count)
-      logInfo("Number of Unknown mols in cycle " + counter + " are " + dsUnknown.count)
-
+      logInfo("Number of bad mols predicted in cycle " + counter + " are " + dsZeroPredicted.count)
+      logInfo("Number of good mols predicted in cycle " + counter + " are " + dsOnePredicted.count)
+      logInfo("Number of Unknown mols predicted in cycle " + counter + " are " + dsUnknownPredicted.count)
+ 
       //Step 10 Subtracting {0} moles from dataset which has not been previously subtracted
-      ds = ds.subtract(dsZero)
-      dsZero.unpersist()
-
+      if (dsZeroRemoved == null)
+        dsZeroRemoved = dsZeroPredicted
+      else  
+        dsZeroRemoved = dsZeroPredicted.subtract(cumulativeZeroRemoved.union(poses))
+      
+      ds = ds.subtract(dsZeroRemoved)
+      logInfo("Number of bad mols removed in cycle " 
+          + counter + " are " + dsZeroRemoved.count)
+      
+      //Keeping all previous removed bad mols
+      if (cumulativeZeroRemoved == null)
+        cumulativeZeroRemoved = dsZeroRemoved
+      else
+        cumulativeZeroRemoved = cumulativeZeroRemoved.union(dsZeroRemoved)
+        
+      dsZeroPredicted.unpersist()
+      
       //Computing efficiency for stopping
       val totalCount = sc.accumulator(0.0)
       val singletonCount = sc.accumulator(0.0)
@@ -223,9 +239,10 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       else
         effCounter = 0
     } while ((effCounter < 2 || counter < 5) && ds.count > 20)
-     
+    logInfo("Total number of bad mols removed are " + cumulativeZeroRemoved.count)
+ 
     //Docking rest of the dsOne mols
-    val dsDockOne = dsOne
+    val dsDockOne = dsOnePredicted.subtract(cumulativeZeroRemoved.union(poses))
 
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
