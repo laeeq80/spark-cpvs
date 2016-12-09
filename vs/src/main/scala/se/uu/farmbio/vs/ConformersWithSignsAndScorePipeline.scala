@@ -104,7 +104,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var dsZeroRemoved:RDD[(String)] = null
+    var dsZeroRemoved: RDD[(String)] = null
     var cumulativeZeroRemoved: RDD[(String)] = null
     var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var dsComplete: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
@@ -137,8 +137,11 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 3
       //Mocking the sampled dataset. We already have scores, docking not required
       val dsDock = dsInit
+      logInfo("\ncycle " + counter 
+          + "   ################################################################\n")
+
       logInfo("dsInit in cycle " + counter + " is " + dsInit.count)
-      
+
       //Step 4
       //Keeping processed poses
       if (poses == null)
@@ -173,7 +176,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
-          lpDsTrain.coalesce(4).cache, calibrationSizeDynamic)
+        lpDsTrain.coalesce(4).cache, calibrationSizeDynamic)
 
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
@@ -197,28 +200,30 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0) || prediction == Set()) }
         .map { case (sdfmol, prediction) => sdfmol }
 
-      logInfo("Number of bad mols predicted in cycle " + counter + " are " + dsZeroPredicted.count)
-      logInfo("Number of good mols predicted in cycle " + counter + " are " + dsOnePredicted.count)
-      logInfo("Number of Unknown mols predicted in cycle " + counter + " are " + dsUnknownPredicted.count)
- 
       //Step 10 Subtracting {0} moles from dataset which has not been previously subtracted
       if (dsZeroRemoved == null)
         dsZeroRemoved = dsZeroPredicted
-      else  
+      else
         dsZeroRemoved = dsZeroPredicted.subtract(cumulativeZeroRemoved.union(poses))
-      
+
       ds = ds.subtract(dsZeroRemoved)
-      logInfo("Number of bad mols removed in cycle " 
-          + counter + " are " + dsZeroRemoved.count)
-      
+      logInfo("Number of bad mols predicted in cycle " +
+        counter + " are " + dsZeroPredicted.count)
+      logInfo("Number of bad mols removed in cycle " +
+        counter + " are " + dsZeroRemoved.count)
+      logInfo("Number of good mols predicted in cycle " +
+        counter + " are " + dsOnePredicted.count)
+      logInfo("Number of Unknown mols predicted in cycle " +
+        counter + " are " + dsUnknownPredicted.count)
+
       //Keeping all previous removed bad mols
       if (cumulativeZeroRemoved == null)
         cumulativeZeroRemoved = dsZeroRemoved
       else
         cumulativeZeroRemoved = cumulativeZeroRemoved.union(dsZeroRemoved)
-        
+
       dsZeroPredicted.unpersist()
-      
+
       //Computing efficiency for stopping
       val totalCount = sc.accumulator(0.0)
       val singletonCount = sc.accumulator(0.0)
@@ -233,6 +238,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       eff = singletonCount.value / totalCount.value
       logInfo("Efficiency in cycle " + counter + " is " + eff)
+
       counter = counter + 1
       if (eff > 0.8)
         effCounter = effCounter + 1
@@ -240,7 +246,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         effCounter = 0
     } while ((effCounter < 2 || counter < 5) && ds.count > 20)
     logInfo("Total number of bad mols removed are " + cumulativeZeroRemoved.count)
- 
+
     //Docking rest of the dsOne mols
     val dsDockOne = dsOnePredicted.subtract(cumulativeZeroRemoved.union(poses))
 
