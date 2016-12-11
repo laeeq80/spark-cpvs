@@ -84,7 +84,7 @@ object Compare extends Logging {
    
    println (s"Percentage of same results is " + (counter/30)*100  ) 
 
-    sc.stop()
+   sc.stop()
 
   }
 

@@ -6,6 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
+import se.uu.farmbio.vs.PosePipeline
 import se.uu.farmbio.vs.ConformersWithSignsAndScorePipeline
 
 /**
@@ -20,7 +21,9 @@ object DockerWithML extends Logging {
     topPosesPath: String = null,
     dsInitSize: Int = 100,
     numIterations: Int = 50,
-    topN: Int = 30)
+    topN: Int = 30,
+    firstFile: String = null,
+    secondFile: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -43,9 +46,18 @@ object DockerWithML extends Logging {
         .required()
         .text("path to top output poses")
         .action((x, c) => c.copy(topPosesPath = x))
+      arg[String]("<first-file>")
+        .required()
+        .text("path to input file with top N mols")
+        .action((x, c) => c.copy(firstFile = x))
+      arg[String]("<second-file>")
+        .required()
+        .text("path to input file that you want to check for accuracy")
+        .action((x, c) => c.copy(secondFile = x))
       opt[Int]("topN")
         .text("number of top scoring poses to extract (default: 30).")
         .action((x, c) => c.copy(topN = x))
+
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -70,6 +82,7 @@ object DockerWithML extends Logging {
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .getMolecules
+      .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
     //.generateSignatures()
 
     val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
@@ -78,6 +91,28 @@ object DockerWithML extends Logging {
     val res = posesWithSigns.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
+
+    val mols1 = new SBVSPipeline(sc)
+      .readPoseFile(params.firstFile)
+      .getMolecules
+
+    val Array1 = mols1.map { mol => PosePipeline.parseScore(mol) }.collect()
+
+    val mols2 = new SBVSPipeline(sc)
+      .readPoseFile(params.secondFile)
+      .getMolecules
+
+    val Array2 = mols2.map { mol => PosePipeline.parseScore(mol) }.collect()
+
+    var counter: Double = 0.0
+    for (i <- 0 to Array1.length - 1)
+      for (j <- 0 to Array2.length - 1)
+        if (Array1(i) == Array2(j))
+          counter = counter + 1
+    logInfo("Number of molecules matched are " + counter)
+
+    logInfo("Percentage of same results is " + (counter / params.topN) * 100)
+
     sc.stop()
 
   }
