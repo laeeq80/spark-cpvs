@@ -76,8 +76,8 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
     while (it.hasNext()) {
       val mol = it.next
       val label = score match { //convert labels
-        case score if score >= scoreHistogram(7) && score <= scoreHistogram(10) => 1.0
-        case score if score >= scoreHistogram(0) && score <= scoreHistogram(1) => 0.0
+        case score if score > scoreHistogram(5) && score <= scoreHistogram(10) => 1.0
+        case score if score >= scoreHistogram(0) && score <= scoreHistogram(5) => 0.0
         case _ => "NAN"
       }
 
@@ -176,7 +176,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain.coalesce(4).cache, calibrationSizeDynamic)
+        lpDsTrain.coalesce(4).cache, calibrationSizeDynamic,stratified = true)
 
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
