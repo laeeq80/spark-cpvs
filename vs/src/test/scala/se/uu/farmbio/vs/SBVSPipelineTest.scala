@@ -106,7 +106,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
 
   }*/
 
-  test("dockWithML should generate the poses in expected format") {
+  /*test("dockWithML should generate the poses in expected format") {
     val molsWithSignAndScore = new SBVSPipeline(sc)
       .readConformerFile(getClass.getResource("100mols.sdf").getPath)
       .generateSignatures
@@ -120,7 +120,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
 
     assert(format === ("AtomContainer", "String", "double"))
 
-  }
+  }*/
 
   override def afterAll() {
     sc.stop()
