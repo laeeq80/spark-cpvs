@@ -20,8 +20,11 @@ object DockerWithML extends Logging {
     conformersFile: String = null,
     topPosesPath: String = null,
     dsInitSize: Int = 100,
+    calibrationSize: Int = 100,
     numIterations: Int = 50,
     topN: Int = 30,
+    badIn: Int = 1,
+    goodIn: Int = 4,
     firstFile: String = null,
     secondFile: String = null)
 
@@ -35,9 +38,18 @@ object DockerWithML extends Logging {
       opt[Int]("dsInitSize")
         .text("intial Data to be docked (default: 100)")
         .action((x, c) => c.copy(dsInitSize = x))
+      opt[Int]("calibrationSize")
+        .text("size of calibration Set (default: 100)")
+        .action((x, c) => c.copy(calibrationSize = x))
       opt[Int]("numIterations")
         .text("number of iternations for the ML model training (default: 100)")
         .action((x, c) => c.copy(numIterations = x))
+      opt[Int]("badIn")
+        .text("UpperBound of bad bins")
+        .action((x, c) => c.copy(badIn = x))
+      opt[Int]("goodIn")
+        .text("LowerBound of good bins")
+        .action((x, c) => c.copy(goodIn = x))
       arg[String]("<conformers-file>")
         .required()
         .text("path to input SDF conformers file")
@@ -87,7 +99,10 @@ object DockerWithML extends Logging {
 
     val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
       .dockWithML(params.dsInitSize,
-        params.numIterations)
+        params.calibrationSize,
+        params.numIterations,
+        params.badIn,
+        params.goodIn)
     val res = posesWithSigns.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
@@ -109,8 +124,8 @@ object DockerWithML extends Logging {
       for (j <- 0 to Array2.length - 1)
         if (Array1(i) == Array2(j))
           counter = counter + 1
+    logInfo("Bad bins ranges from 0-" + params.badIn + " and good bins ranges from " + params.goodIn + "-10"  )      
     logInfo("Number of molecules matched are " + counter)
-
     logInfo("Percentage of same results is " + (counter / params.topN) * 100)
 
     sc.stop()
