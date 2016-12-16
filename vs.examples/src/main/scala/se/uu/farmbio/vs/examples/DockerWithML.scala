@@ -26,7 +26,8 @@ object DockerWithML extends Logging {
     numIterations: Int = 50,
     topN: Int = 30,
     badIn: Int = 1,
-    goodIn: Int = 4)
+    goodIn: Int = 4,
+    singleCycle: Boolean = false)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -69,7 +70,9 @@ object DockerWithML extends Logging {
       opt[Int]("topN")
         .text("number of top scoring poses to extract (default: 30).")
         .action((x, c) => c.copy(topN = x))
-
+      opt[Unit]("singleCycle")
+        .text("if set the model training will be done only once (for testing purposes)")
+        .action((_, c) => c.copy(singleCycle = true))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -101,7 +104,8 @@ object DockerWithML extends Logging {
         params.calibrationSize,
         params.numIterations,
         params.badIn,
-        params.goodIn)
+        params.goodIn,
+        params.singleCycle)
     val res = posesWithSigns.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
@@ -123,9 +127,10 @@ object DockerWithML extends Logging {
       for (j <- 0 to Array2.length - 1)
         if (Array1(i) == Array2(j))
           counter = counter + 1
-    logInfo("Bad bins ranges from 0-" + params.badIn + " and good bins ranges from " + params.goodIn + "-10")
-    logInfo("Number of molecules matched are " + counter)
-    logInfo("Percentage of same results is " + (counter / params.topN) * 100)
+    logInfo("JOB_INFO: Bad bins ranges from 0-" + params.badIn + 
+        " and good bins ranges from " + params.goodIn + "-10")
+    logInfo("JOB_INFO: Number of molecules matched are " + counter)
+    logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
 
     sc.stop()
 
