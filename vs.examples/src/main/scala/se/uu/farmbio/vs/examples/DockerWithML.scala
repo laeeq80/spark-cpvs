@@ -27,7 +27,8 @@ object DockerWithML extends Logging {
     topN: Int = 30,
     badIn: Int = 1,
     goodIn: Int = 4,
-    singleCycle: Boolean = false)
+    singleCycle: Boolean = false,
+    stratified: Boolean = false)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -56,7 +57,7 @@ object DockerWithML extends Logging {
         .text("intial Data to be docked (default: 100)")
         .action((x, c) => c.copy(dsInitSize = x))
       opt[Double]("calibrationPercent")
-        .text("calibration Percent (default: 0.3)")
+        .text("calibration Percent from training set (default: 0.3)")
         .action((x, c) => c.copy(calibrationPercent = x))
       opt[Int]("numIterations")
         .text("number of iternations for the ML model training (default: 100)")
@@ -73,6 +74,9 @@ object DockerWithML extends Logging {
       opt[Unit]("singleCycle")
         .text("if set the model training will be done only once (for testing purposes)")
         .action((_, c) => c.copy(singleCycle = true))
+      opt[Unit]("stratified")
+        .text("if set, stratified sampling is performed for calibrationSplit")
+        .action((_, c) => c.copy(stratified = true))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -105,7 +109,8 @@ object DockerWithML extends Logging {
         params.numIterations,
         params.badIn,
         params.goodIn,
-        params.singleCycle)
+        params.singleCycle,
+        params.stratified)
     val res = posesWithSigns.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
@@ -127,8 +132,8 @@ object DockerWithML extends Logging {
       for (j <- 0 to Array2.length - 1)
         if (Array1(i) == Array2(j))
           counter = counter + 1
-    logInfo("JOB_INFO: Bad bins ranges from 0-" + params.badIn + 
-        " and good bins ranges from " + params.goodIn + "-10")
+    logInfo("JOB_INFO: Bad bins ranges from 0-" + params.badIn +
+      " and good bins ranges from " + params.goodIn + "-10")
     logInfo("JOB_INFO: Number of molecules matched are " + counter)
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
 

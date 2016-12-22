@@ -17,7 +17,8 @@ trait ConformersWithSignsAndScoreTransforms {
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
-    singleCycle: Boolean): SBVSPipeline with PoseTransforms
+    singleCycle: Boolean,
+    stratified: Boolean): SBVSPipeline with PoseTransforms
 }
 
 private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
@@ -111,7 +112,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
-    singleCycle: Boolean) = {
+    singleCycle: Boolean,
+    stratified: Boolean) = {
 
     //initializations
     var poses: RDD[String] = null
@@ -189,7 +191,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     //Train icps
     calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
     val (calibration, properTraining) = ICP.calibrationSplit(
-      lpDsTrain.cache, calibrationSizeDynamic, stratified=true)
+      lpDsTrain.cache, calibrationSizeDynamic, stratified)
 
     //Train ICP
     val svm = new SVM(properTraining.cache, numIterations)
