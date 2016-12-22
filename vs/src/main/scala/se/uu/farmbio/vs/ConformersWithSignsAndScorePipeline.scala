@@ -13,7 +13,7 @@ import se.uu.farmbio.cp.alg.SVM
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
     dsInitSize: Int,
-    calibrationSize: Int,
+    calibrationPercent: Double,
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
@@ -107,7 +107,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
   override def dockWithML(
     dsInitSize: Int,
-    calibrationSize: Int,
+    calibrationPercent: Double,
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
@@ -125,6 +125,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var counter: Int = 1
     var effCounter: Int = 0
     var badCounter: Int = 0
+    var calibrationSizeDynamic: Int = 0
 
     //Converting complete dataset (dsComplete) to feature vector required for conformal prediction
     //We also need to keep intact the poses so at the end we know
@@ -149,7 +150,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     //Step 3
     //Mocking the sampled dataset. We already have scores, docking not required
     val dsDock = dsInit
-    logInfo("\n JOB_INFO: cycle " + counter
+    logInfo("\nJOB_INFO: cycle " + counter
       + "   ################################################################\n")
 
     logInfo("JOB_INFO: dsInit in cycle " + counter + " is " + dsInit.count)
@@ -186,8 +187,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
     //Step 8 Training
     //Train icps
+    calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
     val (calibration, properTraining) = ICP.calibrationSplit(
-      lpDsTrain.coalesce(4).cache, calibrationSize)
+      lpDsTrain.cache, calibrationSizeDynamic, stratified=true)
 
     //Train ICP
     val svm = new SVM(properTraining.cache, numIterations)
