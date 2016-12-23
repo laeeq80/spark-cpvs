@@ -13,7 +13,7 @@ import se.uu.farmbio.cp.alg.SVM
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
     dsInitSize: Int,
-    calibrationPercent: Double,
+    calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
@@ -108,7 +108,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
   override def dockWithML(
     dsInitSize: Int,
-    calibrationPercent: Double,
+    calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
@@ -127,7 +127,6 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var counter: Int = 1
     var effCounter: Int = 0
     var badCounter: Int = 0
-    var calibrationSizeDynamic: Int = 0
 
     //Converting complete dataset (dsComplete) to feature vector required for conformal prediction
     //We also need to keep intact the poses so at the end we know
@@ -189,9 +188,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
     //Step 8 Training
     //Train icps
-    calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
     val (calibration, properTraining) = ICP.calibrationSplit(
-      lpDsTrain.cache, calibrationSizeDynamic, stratified)
+      lpDsTrain.cache, calibrationSize, stratified)
 
     //Train ICP
     val svm = new SVM(properTraining.cache, numIterations)
