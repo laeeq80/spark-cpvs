@@ -22,6 +22,7 @@ object DockerWithML extends Logging {
     firstFile: String = null,
     secondFile: String = null,
     dsInitSize: Int = 100,
+    dsIncreSize: Int = 50,
     calibrationSize: Int = 100,
     numIterations: Int = 50,
     topN: Int = 30,
@@ -54,8 +55,11 @@ object DockerWithML extends Logging {
         .text("path to input file that you want to check for accuracy")
         .action((x, c) => c.copy(secondFile = x))
       opt[Int]("dsInitSize")
-        .text("intial Data to be docked (default: 100)")
+        .text("initial Data Size to be docked (default: 100)")
         .action((x, c) => c.copy(dsInitSize = x))
+      opt[Int]("dsIncreSize")
+        .text("incremental Data Size to be docked (default: 50)")
+        .action((x, c) => c.copy(dsIncreSize = x))
       opt[Int]("calibrationSize")
         .text("size of calibration Set (default: 100)")
         .action((x, c) => c.copy(calibrationSize = x))
@@ -105,6 +109,7 @@ object DockerWithML extends Logging {
 
     val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
       .dockWithML(params.dsInitSize,
+        params.dsIncreSize,
         params.calibrationSize,
         params.numIterations,
         params.badIn,
