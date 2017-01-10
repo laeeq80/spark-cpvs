@@ -206,7 +206,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       //Step 9 Prediction using our model
       val predictions = fvDsComplete.map {
-        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.1))
+        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
       }
 
       val dsZeroPredicted: RDD[(String)] = predictions
