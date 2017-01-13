@@ -71,7 +71,6 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
       val Vector = Vectors.parse(mol.getProperty("Signature"))
       res = res ++ Seq(Vector)
     }
-
     res //return the FeatureVector
   }
 
@@ -84,6 +83,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
     val it = SBVSPipeline.CDKInit(sdfRecord)
     val strWriter = new StringWriter()
     val writer = new SDFWriter(strWriter)
+
     while (it.hasNext()) {
       val mol = it.next
       val label = score match { //convert labels
@@ -100,6 +100,46 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
     }
     writer.close
     strWriter.toString() //return the molecule  
+  }
+
+  private def getZeroLabeledMols(sdfRecord: String) = {
+
+    val it = SBVSPipeline.CDKInit(sdfRecord)
+    val strWriter = new StringWriter()
+    val writer = new SDFWriter(strWriter)
+
+    while (it.hasNext()) {
+      val mol = it.next
+      val label: String = mol.getProperty("Label")
+      val doubleLabel: Double = label.toDouble
+      if (doubleLabel == 0.0) {
+        mol.removeProperty("cdk:Remark")
+        writer.write(mol)
+      }
+    }
+    writer.close
+    strWriter.toString() //return the molecule
+
+  }
+
+  private def getOneLabeledMols(sdfRecord: String) = {
+
+    val it = SBVSPipeline.CDKInit(sdfRecord)
+    val strWriter = new StringWriter()
+    val writer = new SDFWriter(strWriter)
+
+    while (it.hasNext()) {
+      val mol = it.next
+      val label: String = mol.getProperty("Label")
+      val doubleLabel: Double = label.toDouble
+      if (doubleLabel == 1.0) {
+        mol.removeProperty("cdk:Remark")
+        writer.write(mol)
+      }
+    }
+    writer.close
+    strWriter.toString() //return the molecule
+
   }
 
 }
@@ -131,6 +171,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var badCounter: Int = 0
     var dsInit: RDD[String] = null
     var calibrationSizeDynamic: Int = 0
+    var dsBadInTrainingSet: RDD[String] = null
+    var dsGoodInTrainingSet: RDD[String] = null
 
     //Converting complete dataset (dsComplete) to feature vector required for conformal prediction
     //We also need to keep intact the poses so at the end we know
@@ -187,6 +229,29 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       else
         dsTrain = dsTrain.union(dsTopAndBottom)
       logInfo("JOB_INFO: Training set size in cycle " + counter + " is " + dsTrain.count)
+
+      //Counting zeroes and ones in each training set in each cycle
+      if (dsTrain == null) {
+        dsBadInTrainingSet = dsTopAndBottom.map {
+          case (mol) => ConformersWithSignsAndScorePipeline.getZeroLabeledMols(mol)
+        }.map(_.trim).filter(_.nonEmpty)
+      } else {
+        dsBadInTrainingSet = dsTrain.map {
+          case (mol) => ConformersWithSignsAndScorePipeline.getZeroLabeledMols(mol)
+        }.map(_.trim).filter(_.nonEmpty)
+      }
+
+      if (dsTrain == null) {
+        dsGoodInTrainingSet = dsTopAndBottom.map {
+          case (mol) => ConformersWithSignsAndScorePipeline.getOneLabeledMols(mol)
+        }.map(_.trim).filter(_.nonEmpty)
+      } else {
+        dsGoodInTrainingSet = dsTrain.map {
+          case (mol) => ConformersWithSignsAndScorePipeline.getOneLabeledMols(mol)
+        }.map(_.trim).filter(_.nonEmpty)
+      }
+      logInfo("JOB_INFO: Zero Labeled Mols in Training set in cycle " + counter + " are " + dsBadInTrainingSet.count)
+      logInfo("JOB_INFO: One Labeled Mols in Training set in cycle " + counter + " are " + dsGoodInTrainingSet.count)
 
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
