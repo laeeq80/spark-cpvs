@@ -102,43 +102,16 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
     strWriter.toString() //return the molecule  
   }
 
-  private def getZeroLabeledMols(sdfRecord: String) = {
+  private def getLabel(sdfRecord: String) = {
 
     val it = SBVSPipeline.CDKInit(sdfRecord)
-    val strWriter = new StringWriter()
-    val writer = new SDFWriter(strWriter)
-
+    var label: String = null
     while (it.hasNext()) {
       val mol = it.next
-      val label: String = mol.getProperty("Label")
-      val doubleLabel: Double = label.toDouble
-      if (doubleLabel == 0.0) {
-        mol.removeProperty("cdk:Remark")
-        writer.write(mol)
-      }
+      label = mol.getProperty("Label")
+
     }
-    writer.close
-    strWriter.toString() //return the molecule
-
-  }
-
-  private def getOneLabeledMols(sdfRecord: String) = {
-
-    val it = SBVSPipeline.CDKInit(sdfRecord)
-    val strWriter = new StringWriter()
-    val writer = new SDFWriter(strWriter)
-
-    while (it.hasNext()) {
-      val mol = it.next
-      val label: String = mol.getProperty("Label")
-      val doubleLabel: Double = label.toDouble
-      if (doubleLabel == 1.0) {
-        mol.removeProperty("cdk:Remark")
-        writer.write(mol)
-      }
-    }
-    writer.close
-    strWriter.toString() //return the molecule
+    label
 
   }
 
@@ -232,23 +205,23 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       //Counting zeroes and ones in each training set in each cycle
       if (dsTrain == null) {
-        dsBadInTrainingSet = dsTopAndBottom.map {
-          case (mol) => ConformersWithSignsAndScorePipeline.getZeroLabeledMols(mol)
-        }.map(_.trim).filter(_.nonEmpty)
+        dsBadInTrainingSet = dsTopAndBottom.filter {
+          case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "0.0"
+        }
       } else {
-        dsBadInTrainingSet = dsTrain.map {
-          case (mol) => ConformersWithSignsAndScorePipeline.getZeroLabeledMols(mol)
-        }.map(_.trim).filter(_.nonEmpty)
+        dsBadInTrainingSet = dsTrain.filter {
+          case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "0.0"
+        }
       }
 
       if (dsTrain == null) {
-        dsGoodInTrainingSet = dsTopAndBottom.map {
-          case (mol) => ConformersWithSignsAndScorePipeline.getOneLabeledMols(mol)
-        }.map(_.trim).filter(_.nonEmpty)
+        dsGoodInTrainingSet = dsTopAndBottom.filter {
+          case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "1.0"
+        }
       } else {
-        dsGoodInTrainingSet = dsTrain.map {
-          case (mol) => ConformersWithSignsAndScorePipeline.getOneLabeledMols(mol)
-        }.map(_.trim).filter(_.nonEmpty)
+        dsGoodInTrainingSet = dsTrain.filter {
+          case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "1.0"
+        }
       }
       logInfo("JOB_INFO: Zero Labeled Mols in Training set in cycle " + counter + " are " + dsBadInTrainingSet.count)
       logInfo("JOB_INFO: One Labeled Mols in Training set in cycle " + counter + " are " + dsGoodInTrainingSet.count)
@@ -259,7 +232,6 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       }
 
       //Step 8 Training
-      //Train icps
       calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
 
       val (calibration, properTraining) = ICP.calibrationSplit(
