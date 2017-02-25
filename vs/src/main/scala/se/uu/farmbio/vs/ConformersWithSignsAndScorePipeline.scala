@@ -241,6 +241,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       val svm = new SVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
+      
+      logInfo("JOB_INFO: Profiling model training time" + lpDsTrain.count())
+      
       lpDsTrain.unpersist()
       properTraining.unpersist()
 
@@ -249,6 +252,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
       }
 
+      logInfo("JOB_INFO: Profiling prediction time" + predictions.count())
+
+      
       val dsZeroPredicted: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
