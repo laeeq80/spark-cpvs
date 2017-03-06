@@ -29,7 +29,8 @@ object DockerWithML extends Logging {
     badIn: Int = 1,
     goodIn: Int = 4,
     singleCycle: Boolean = false,
-    stratified: Boolean = false)
+    stratified: Boolean = false,
+    confidence: Double = 0.2)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -81,6 +82,10 @@ object DockerWithML extends Logging {
       opt[Unit]("stratified")
         .text("if set, stratified sampling is performed for calibrationSplit")
         .action((_, c) => c.copy(stratified = true))
+      opt[Double]("confidence")
+        .text("confidence for conformal prediction (default: 1 - 0.2)")
+        .action((x, c) => c.copy(calibrationPercent = x))
+      opt[Int]("numIterations")  
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -115,7 +120,8 @@ object DockerWithML extends Logging {
         params.badIn,
         params.goodIn,
         params.singleCycle,
-        params.stratified)
+        params.stratified,
+        params.confidence)
     val res = posesWithSigns.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
