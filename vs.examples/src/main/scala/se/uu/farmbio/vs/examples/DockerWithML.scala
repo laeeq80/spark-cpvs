@@ -84,8 +84,7 @@ object DockerWithML extends Logging {
         .action((_, c) => c.copy(stratified = true))
       opt[Double]("confidence")
         .text("confidence for conformal prediction (default: 1 - 0.2)")
-        .action((x, c) => c.copy(calibrationPercent = x))
-      opt[Int]("numIterations")  
+        .action((x, c) => c.copy(confidence = x)) 
     }
 
     parser.parse(args, defaultParams).map { params =>
