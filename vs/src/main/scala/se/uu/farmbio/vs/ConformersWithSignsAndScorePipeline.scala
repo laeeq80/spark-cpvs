@@ -19,7 +19,8 @@ trait ConformersWithSignsAndScoreTransforms {
     badIn: Int,
     goodIn: Int,
     singleCycle: Boolean,
-    stratified: Boolean): SBVSPipeline with PoseTransforms
+    stratified: Boolean,
+    confidence: Double): SBVSPipeline with PoseTransforms
 }
 
 private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
@@ -128,7 +129,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     badIn: Int,
     goodIn: Int,
     singleCycle: Boolean,
-    stratified: Boolean) = {
+    stratified: Boolean,
+    confidence: Double) = {
 
     //initializations
     var poses: RDD[String] = null
@@ -249,7 +251,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       //Step 9 Prediction using our model
       val predictions = fvDsComplete.map {
-        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
+        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, confidence))
       }
 
       logInfo("JOB_INFO: Profiling prediction time" + predictions.count())
