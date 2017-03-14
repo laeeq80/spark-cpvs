@@ -263,10 +263,14 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       dsOnePredicted = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
-      val dsUnknownPredicted: RDD[(String)] = predictions
-        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0) || prediction == Set()) }
+      val dsBothUnknown: RDD[(String)] = predictions
+        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
-
+      val dsEmptyUnknown: RDD[(String)] = predictions
+        .filter { case (sdfmol, prediction) => (prediction == Set()) }
+        .map { case (sdfmol, prediction) => sdfmol }
+      
+        
       //Step 10 Subtracting {0} moles from dataset which has not been previously subtracted
       if (dsZeroRemoved == null)
         dsZeroRemoved = dsZeroPredicted
@@ -280,8 +284,11 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         counter + " are " + dsZeroRemoved.count)
       logInfo("JOB_INFO: Number of good mols predicted in cycle " +
         counter + " are " + dsOnePredicted.count)
-      logInfo("JOB_INFO: Number of Unknown mols predicted in cycle " +
-        counter + " are " + dsUnknownPredicted.count)
+      logInfo("JOB_INFO: Number of Both Unknown mols predicted in cycle " +
+        counter + " are " + dsBothUnknown.count)  
+      logInfo("JOB_INFO: Number of Empty Unknown mols predicted in cycle " +
+        counter + " are " + dsEmptyUnknown.count)
+      
 
       //Keeping all previous removed bad mols
       if (cumulativeZeroRemoved == null)
