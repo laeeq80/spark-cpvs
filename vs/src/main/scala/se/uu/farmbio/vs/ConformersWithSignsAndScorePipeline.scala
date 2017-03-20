@@ -318,7 +318,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         effCounter = effCounter + 1
       else
         effCounter = 0
-    } while (((effCounter < 2 || counter < 5) && ds.count > 20) && !singleCycle)
+    } while ((effCounter < 2 && ds.count > 20) && !singleCycle)
     logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
 
     //Docking rest of the dsOne mols
