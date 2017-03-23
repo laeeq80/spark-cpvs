@@ -273,7 +273,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         
       //Step 10 Subtracting {0} moles from dataset which has not been previously subtracted
       if (dsZeroRemoved == null)
-        dsZeroRemoved = dsZeroPredicted
+        dsZeroRemoved = dsZeroPredicted.subtract(poses)
       else
         dsZeroRemoved = dsZeroPredicted.subtract(cumulativeZeroRemoved.union(poses))
 
