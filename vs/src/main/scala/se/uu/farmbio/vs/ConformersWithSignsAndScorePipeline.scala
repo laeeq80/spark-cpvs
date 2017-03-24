@@ -323,7 +323,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
     //Docking rest of the dsOne mols
     val dsDockOne = dsOnePredicted.subtract(cumulativeZeroRemoved.union(poses))
-
+    logInfo("JOB_INFO: Number of mols in dsDockOne are " + dsDockOne.count)
+    
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
       poses = dsDockOne
