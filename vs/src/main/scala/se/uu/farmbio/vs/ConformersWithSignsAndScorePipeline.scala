@@ -277,7 +277,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       else
         dsZeroRemoved = dsZeroPredicted.subtract(cumulativeZeroRemoved.union(poses))
 
-      ds = ds.subtract(dsZeroRemoved)
+      //ds = ds.subtract(dsZeroRemoved)
       logInfo("JOB_INFO: Number of bad mols predicted in cycle " +
         counter + " are " + dsZeroPredicted.count)
       logInfo("JOB_INFO: Number of bad mols removed in cycle " +
@@ -322,8 +322,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
 
     //Docking rest of the dsOne mols
-    val dsDockOne = dsOnePredicted.subtract(poses)
-    logInfo("JOB_INFO: Number of mols in dsDockOne are " + dsDockOne.count)
+    val dsDockOne = dsOnePredicted.subtract(cumulativeZeroRemoved.union(poses))
+    logInfo("JOB_INFO: Number of mols in dsDockOne are ")
     
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
