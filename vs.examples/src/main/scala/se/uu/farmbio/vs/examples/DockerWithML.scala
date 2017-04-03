@@ -22,9 +22,19 @@ object DockerWithML extends Logging {
     topPosesPath: String = null,
     receptorFile: String = null,
     oeLicensePath: String = null,
+    firstFile: String = null,
+    secondFile: String = null,
     dsInitSize: Int = 100,
+    dsIncreSize: Int = 50,
+    calibrationPercent: Double = 0.3,
     numIterations: Int = 50,
-    topN: Int = 30)
+    topN: Int = 30,
+    badIn: Int = 1,
+    goodIn: Int = 4,
+    singleCycle: Boolean = false,
+    stratified: Boolean = false,
+    confidence: Double = 0.2
+  )
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -33,12 +43,6 @@ object DockerWithML extends Logging {
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
-      opt[Int]("dsInitSize")
-        .text("intial Data to be docked (default: 100)")
-        .action((x, c) => c.copy(dsInitSize = x))
-      opt[Int]("numIterations")
-        .text("number of iternations for the ML model training (default: 100)")
-        .action((x, c) => c.copy(numIterations = x))
       arg[String]("<conformers-file>")
         .required()
         .text("path to input SDF conformers file")
@@ -54,9 +58,44 @@ object DockerWithML extends Logging {
       opt[String]("oeLicensePath")
         .text("path to OEChem License")
         .action((x, c) => c.copy(oeLicensePath = x))
+      arg[String]("<first-file>")
+        .required()
+        .text("path to input file with top N mols")
+        .action((x, c) => c.copy(firstFile = x))
+      arg[String]("<second-file>")
+        .required()
+        .text("path to input file that you want to check for accuracy")
+        .action((x, c) => c.copy(secondFile = x))
+      opt[Int]("dsInitSize")
+        .text("initial Data Size to be docked (default: 100)")
+        .action((x, c) => c.copy(dsInitSize = x))
+      opt[Int]("dsIncreSize")
+        .text("incremental Data Size to be docked (default: 50)")
+        .action((x, c) => c.copy(dsIncreSize = x))
+      opt[Double]("calibrationPercent")
+        .text("calibration Percent from training set (default: 0.3)")
+        .action((x, c) => c.copy(calibrationPercent = x))
+      opt[Int]("numIterations")
+        .text("number of iternations for the ML model training (default: 100)")
+        .action((x, c) => c.copy(numIterations = x))
+      opt[Int]("badIn")
+        .text("UpperBound of bad bins")
+        .action((x, c) => c.copy(badIn = x))
+      opt[Int]("goodIn")
+        .text("LowerBound of good bins")
+        .action((x, c) => c.copy(goodIn = x))
       opt[Int]("topN")
         .text("number of top scoring poses to extract (default: 30).")
         .action((x, c) => c.copy(topN = x))
+      opt[Unit]("singleCycle")
+        .text("if set the model training will be done only once (for testing purposes)")
+        .action((_, c) => c.copy(singleCycle = true))
+      opt[Unit]("stratified")
+        .text("if set, stratified sampling is performed for calibrationSplit")
+        .action((_, c) => c.copy(stratified = true))
+      opt[Double]("confidence")
+        .text("confidence for conformal prediction (default: 1 - 0.2)")
+        .action((x, c) => c.copy(confidence = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -87,7 +126,14 @@ object DockerWithML extends Logging {
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
         params.dsInitSize,
-        params.numIterations)
+        params.dsIncreSize,
+        params.calibrationPercent,
+        params.numIterations,
+        params.badIn,
+        params.goodIn,
+        params.singleCycle,
+        params.stratified,
+        params.confidence)
     val cachedPoses = poses.getMolecules.cache()
     val res = poses.getTopPoses(params.topN)
 

@@ -37,7 +37,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res === sortedPoses)
 
   }
-/*
+
   ignore("collapse should collapse poses with same id to n with highest score") {
 
     val n = 2
@@ -52,7 +52,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res.toSet === filteredCollapsed.toSet)
 
   }
-
+/*
   test("filter should filter a set of SMILES according to the provided custom filter") {
 
     val res = new SBVSPipeline(sc)
@@ -125,7 +125,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res.map(TestUtils.removeSDFheader).toSet
       === dockedMolecules.map(TestUtils.removeSDFheader).toSet)
 
-  }
+  } */
 
   test("getTopPoses should return the topN poses") {
     val topN = 10
@@ -137,7 +137,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res.map(TestUtils.removeSDFheader) === topCollapsed.map(TestUtils.removeSDFheader))
 
   }
-
+/*
   test("Signatures are maintained(not lost) after docking") {
 
     val molWithSigns = new SBVSPipeline(sc)
@@ -165,7 +165,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(signsBeforeDocking.toSet()
       === signsAfterDocking.toSet())
 
-  }*/
+  }
 
   test("dockWithML should generate the poses in expected format") {
     val molsWithSignAndScore = new SBVSPipeline(sc)
@@ -183,7 +183,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
 
     assert(format === ("AtomContainer", "String", "double"))
 
-  }
+  }*/
 
   override def afterAll() {
     sc.stop()
