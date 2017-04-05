@@ -6,6 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
+import se.uu.farmbio.vs.PosePipeline
 
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
@@ -136,8 +137,30 @@ object DockerWithML extends Logging {
         params.confidence)
     val cachedPoses = poses.getMolecules.cache()
     val res = poses.getTopPoses(params.topN)
-
+    
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
+    
+    val mols1 = new SBVSPipeline(sc)
+      .readPoseFile(params.firstFile,  OEDockMethod.Chemgauss4)
+      .getMolecules
+
+    val Array1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
+
+    val mols2 = new SBVSPipeline(sc)
+      .readPoseFile(params.secondFile,  OEDockMethod.Chemgauss4)
+      .getMolecules
+
+    val Array2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
+
+    var counter: Double = 0.0
+    for (i <- 0 to Array1.length - 1)
+      for (j <- 0 to Array2.length - 1)
+        if (Array1(i) == Array2(j))
+          counter = counter + 1
+    logInfo("JOB_INFO: Bad bins ranges from 0-" + params.badIn +
+      " and good bins ranges from " + params.goodIn + "-10")
+    logInfo("JOB_INFO: Number of molecules matched are " + counter)
+    logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
     sc.stop()
 
   }

@@ -57,10 +57,10 @@ object ConformerPipeline extends Logging {
   private[vs] def getDockingRDD(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean, sc: SparkContext, rdd: RDD[String]) = {
     //Use local CPP if DOCKING_CPP is set
     val dockingstdPath = if (System.getenv("DOCKING_CPP") != null) {
-      logInfo("using local dockingstd: " + System.getenv("DOCKING_CPP"))
+      logInfo("JOB_INFO: using local dockingstd: " + System.getenv("DOCKING_CPP"))
       System.getenv("DOCKING_CPP")
     } else {
-      logInfo("using remote dockingstd: " + DOCKING_CPP_URL)
+      logInfo("JOB_INFO: using remote dockingstd: " + DOCKING_CPP_URL)
       DOCKING_CPP_URL
     }
 

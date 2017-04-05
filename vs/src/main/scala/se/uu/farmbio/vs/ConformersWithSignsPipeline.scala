@@ -219,7 +219,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
 
       eff = singletonCount.value / totalCount.value
-      logInfo("Efficiency in cycle " + counter + " is " + eff)
+      logInfo("JOB_INFO: Efficiency in cycle " + counter + " is " + eff)
 
       if (eff >= 0.8) {
         effCounter = effCounter + 1
@@ -239,7 +239,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       poses = dsDockOne
     else
       poses = poses.union(dsDockOne)
-    logInfo("Total number of docked mols are " + poses.count)
+    logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
     new PosePipeline(poses, method)
 
   }
