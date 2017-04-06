@@ -164,13 +164,13 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 1
       //Get a sample of the data
       if (dsInit == null)
-        dsInit = sc.makeRDD(ds.takeSample(false, dsInitSize))
+        dsInit = sc.makeRDD(ds.takeSample(false, dsInitSize)).cache()
       else
-        dsInit = sc.makeRDD(ds.takeSample(false, dsIncreSize))
+        dsInit = sc.makeRDD(ds.takeSample(false, dsIncreSize)).cache()
 
       //Step 2
       //Subtract the sampled molecules from main dataset
-      ds = ds.subtract(dsInit)
+      ds = ds.subtract(dsInit).cache()
 
       //Step 3
       //Mocking the sampled dataset. We already have scores, docking not required
@@ -277,7 +277,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       else
         dsZeroRemoved = dsZeroPredicted.subtract(cumulativeZeroRemoved.union(poses))
 
-      ds = ds.subtract(dsZeroRemoved)
+      ds = ds.subtract(dsZeroRemoved).cache()
       logInfo("JOB_INFO: Number of bad mols predicted in cycle " +
         counter + " are " + dsZeroPredicted.count)
       logInfo("JOB_INFO: Number of bad mols removed in cycle " +
@@ -322,7 +322,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
 
     //Docking rest of the dsOne mols
-    val dsDockOne = dsOnePredicted.subtract(poses)
+    val dsDockOne = dsOnePredicted.subtract(poses).cache()
     logInfo("JOB_INFO: Number of mols in dsDockOne are " + dsDockOne.count)
     
     //Keeping rest of processed poses i.e. dsOne mol poses
