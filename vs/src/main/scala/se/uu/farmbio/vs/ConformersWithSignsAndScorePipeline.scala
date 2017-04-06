@@ -14,7 +14,7 @@ trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
     dsInitSize: Int,
     dsIncreSize: Int,
-    calibrationPercent: Double,
+    calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
@@ -124,7 +124,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
   override def dockWithML(
     dsInitSize: Int,
     dsIncreSize: Int,
-    calibrationPercent: Double,
+    calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
@@ -138,7 +138,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var dsOnePredicted: RDD[(String)] = null
     var dsZeroRemoved: RDD[(String)] = null
     var cumulativeZeroRemoved: RDD[(String)] = null
-    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).cache()
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var dsComplete: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var eff: Double = 0.0
     var counter: Int = 1
@@ -234,10 +234,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       }
 
       //Step 8 Training
-      calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
-
       val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain.cache, calibrationSizeDynamic, stratified)
+        lpDsTrain.cache, calibrationSize, stratified)
 
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
