@@ -307,12 +307,14 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       eff = singletonCount.value / totalCount.value
       logInfo("JOB_INFO: Efficiency in cycle " + counter + " is " + eff)
-
+      dsInit.unpersist()
+      
       counter = counter + 1
       if (eff > 0.8)
         effCounter = effCounter + 1
       else
         effCounter = 0
+                
     } while (effCounter < 2 && !singleCycle)
     logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
     
