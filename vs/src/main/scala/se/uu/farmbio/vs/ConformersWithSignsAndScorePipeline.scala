@@ -238,10 +238,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         lpDsTrain.cache, calibrationSize, stratified)
 
       //Train ICP
-      val svm = new SVM(properTraining.coalesce(16).cache, numIterations)
+      val svm = new SVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
-      
             
       lpDsTrain.unpersist()
       properTraining.unpersist()
