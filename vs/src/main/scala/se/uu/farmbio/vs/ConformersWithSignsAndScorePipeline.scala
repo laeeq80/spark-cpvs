@@ -12,8 +12,8 @@ import se.uu.farmbio.cp.alg.SVM
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
-    dsInitPercent: Int,
-    dsIncrePercent: Int,
+    dsInitPercent: Double,
+    dsIncrePercent: Double,
     calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
@@ -122,8 +122,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     extends SBVSPipeline(rdd) with ConformersWithSignsAndScoreTransforms {
 
   override def dockWithML(
-    dsInitPercent: Int,
-    dsIncrePercent: Int,
+    dsInitPercent: Double,
+    dsIncrePercent: Double,
     calibrationSize: Int,
     numIterations: Int,
     badIn: Int,

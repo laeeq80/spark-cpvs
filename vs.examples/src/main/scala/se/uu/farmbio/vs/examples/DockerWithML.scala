@@ -21,8 +21,8 @@ object DockerWithML extends Logging {
     topPosesPath: String = null,
     firstFile: String = null,
     secondFile: String = null,
-    dsInitPercent: Int = 10,
-    dsIncrePercent: Int = 5,
+    dsInitPercent: Double = 0.1,
+    dsIncrePercent: Double = 0.05,
     calibrationSize: Int = 200,
     numIterations: Int = 50,
     topN: Int = 30,
@@ -55,11 +55,11 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input file that you want to check for accuracy")
         .action((x, c) => c.copy(secondFile = x))
-      opt[Int]("dsInitSize")
-        .text("initial Data Size Percent to be docked (default: 10)")
+      opt[Int]("dsInitPercent")
+        .text("initial Data Size Percent to be docked (default: 0.1)")
         .action((x, c) => c.copy(dsInitPercent = x))
-      opt[Int]("dsIncreSize")
-        .text("incremental Data Size Percent to be docked (default: 5)")
+      opt[Int]("dsIncrePercent")
+        .text("incremental Data Size Percent to be docked (default: 0.05)")
         .action((x, c) => c.copy(dsIncrePercent = x))
       opt[Int]("calibrationSize")
         .text("calibration Set Size from training set (default: 200)")
