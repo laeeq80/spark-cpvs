@@ -21,8 +21,8 @@ object DockerWithML extends Logging {
     topPosesPath: String = null,
     firstFile: String = null,
     secondFile: String = null,
-    dsInitSize: Int = 100,
-    dsIncreSize: Int = 50,
+    dsInitPercent: Int = 10,
+    dsIncrePercent: Int = 5,
     calibrationSize: Int = 200,
     numIterations: Int = 50,
     topN: Int = 30,
@@ -56,11 +56,11 @@ object DockerWithML extends Logging {
         .text("path to input file that you want to check for accuracy")
         .action((x, c) => c.copy(secondFile = x))
       opt[Int]("dsInitSize")
-        .text("initial Data Size to be docked (default: 100)")
-        .action((x, c) => c.copy(dsInitSize = x))
+        .text("initial Data Size Percent to be docked (default: 10)")
+        .action((x, c) => c.copy(dsInitPercent = x))
       opt[Int]("dsIncreSize")
-        .text("incremental Data Size to be docked (default: 50)")
-        .action((x, c) => c.copy(dsIncreSize = x))
+        .text("incremental Data Size Percent to be docked (default: 5)")
+        .action((x, c) => c.copy(dsIncrePercent = x))
       opt[Int]("calibrationSize")
         .text("calibration Set Size from training set (default: 200)")
         .action((x, c) => c.copy(calibrationSize = x))
@@ -112,8 +112,8 @@ object DockerWithML extends Logging {
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
 
     val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
-      .dockWithML(params.dsInitSize,
-        params.dsIncreSize,
+      .dockWithML(params.dsInitPercent,
+        params.dsIncrePercent,
         params.calibrationSize,
         params.numIterations,
         params.badIn,
