@@ -12,8 +12,8 @@ import se.uu.farmbio.cp.alg.SVM
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
-    dsInitSize: Int,
-    dsIncreSize: Int,
+    dsInitPercent: Int,
+    dsIncrePercent: Int,
     calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
@@ -122,8 +122,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     extends SBVSPipeline(rdd) with ConformersWithSignsAndScoreTransforms {
 
   override def dockWithML(
-    dsInitSize: Int,
-    dsIncreSize: Int,
+    dsInitPercent: Int,
+    dsIncrePercent: Int,
     calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
@@ -164,13 +164,13 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 1
       //Get a sample of the data
       if (dsInit == null)
-        dsInit = sc.makeRDD(ds.takeSample(false, dsInitSize)).cache()
+        dsInit = ds.sample(false, dsInitPercent).cache()
       else
-        dsInit = sc.makeRDD(ds.takeSample(false, dsIncreSize)).cache()
+        dsInit = ds.sample(false, dsIncrePercent).cache()
 
       //Step 2
       //Subtract the sampled molecules from main dataset
-      ds = ds.subtract(dsInit).cache()
+      ds = ds.subtract(dsInit)
 
       //Step 3
       //Mocking the sampled dataset. We already have scores, docking not required
@@ -271,7 +271,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       else
         dsZeroRemoved = dsZeroPredicted.subtract(cumulativeZeroRemoved.union(poses))
 
-      ds = ds.subtract(dsZeroRemoved).cache()
+      ds = ds.subtract(dsZeroRemoved)
       logInfo("JOB_INFO: Number of bad mols predicted in cycle " +
         counter + " are " + dsZeroPredicted.count)
       logInfo("JOB_INFO: Number of bad mols removed in cycle " +
