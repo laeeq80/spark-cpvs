@@ -203,30 +203,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         dsTrain = dsTopAndBottom
       else
         dsTrain = dsTrain.union(dsTopAndBottom)
-      logInfo("JOB_INFO: Training set size in cycle " + counter + " is " + dsTrain.count)
 
-      //Counting zeroes and ones in each training set in each cycle
-      if (dsTrain == null) {
-        dsBadInTrainingSet = dsTopAndBottom.filter {
-          case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "0.0"
-        }
-      } else {
-        dsBadInTrainingSet = dsTrain.filter {
-          case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "0.0"
-        }
-      }
-
-      if (dsTrain == null) {
-        dsGoodInTrainingSet = dsTopAndBottom.filter {
-          case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "1.0"
-        }
-      } else {
-        dsGoodInTrainingSet = dsTrain.filter {
-          case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "1.0"
-        }
-      }
-      logInfo("JOB_INFO: Zero Labeled Mols in Training set in cycle " + counter + " are " + dsBadInTrainingSet.count)
-      logInfo("JOB_INFO: One Labeled Mols in Training set in cycle " + counter + " are " + dsGoodInTrainingSet.count)
 
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
@@ -257,40 +234,10 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       dsOnePredicted = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
-      val dsBothUnknown: RDD[(String)] = predictions
-        .filter { case (sdfmol, prediction) => (prediction == Set(0.0, 1.0)) }
-        .map { case (sdfmol, prediction) => sdfmol }
-      val dsEmptyUnknown: RDD[(String)] = predictions
-        .filter { case (sdfmol, prediction) => (prediction == Set()) }
-        .map { case (sdfmol, prediction) => sdfmol }
-      
-        
-      //Step 10 Subtracting {0} moles from dataset which has not been previously subtracted
-      if (dsZeroRemoved == null)
-        dsZeroRemoved = dsZeroPredicted.subtract(poses)
-      else
-        dsZeroRemoved = dsZeroPredicted.subtract(cumulativeZeroRemoved.union(poses))
-
-      ds = ds.subtract(dsZeroRemoved)
-      logInfo("JOB_INFO: Number of bad mols predicted in cycle " +
-        counter + " are " + dsZeroPredicted.count)
-      logInfo("JOB_INFO: Number of bad mols removed in cycle " +
-        counter + " are " + dsZeroRemoved.count)
-      logInfo("JOB_INFO: Number of good mols predicted in cycle " +
-        counter + " are " + dsOnePredicted.count)
-      logInfo("JOB_INFO: Number of Both Unknown mols predicted in cycle " +
-        counter + " are " + dsBothUnknown.count)  
-      logInfo("JOB_INFO: Number of Empty Unknown mols predicted in cycle " +
-        counter + " are " + dsEmptyUnknown.count)
       
 
-      //Keeping all previous removed bad mols
-      if (cumulativeZeroRemoved == null)
-        cumulativeZeroRemoved = dsZeroRemoved
-      else
-        cumulativeZeroRemoved = cumulativeZeroRemoved.union(dsZeroRemoved)
-
-      dsZeroPredicted.unpersist()
+      ds = ds.subtract(dsZeroPredicted)
+    
 
       //Computing efficiency for stopping
       val totalCount = sc.accumulator(0.0)
@@ -316,8 +263,6 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         effCounter = 0
                 
     } while (effCounter < 2 && !singleCycle)
-    logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
-    
     
     //Docking rest of the dsOne mols
     val dsDockOne = dsOnePredicted.subtract(poses).cache()
