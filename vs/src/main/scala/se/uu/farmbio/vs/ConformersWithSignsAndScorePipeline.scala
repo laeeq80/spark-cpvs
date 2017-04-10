@@ -165,12 +165,11 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 1
       //Get a sample of the data
       if (counter > 1)
-        dsIncrePercent = dsIncrePercent + 0.03
+        dsIncrePercent = dsIncrePercent + incrementInPercent
       if (dsInit == null)
         dsInit = ds.sample(false, dsInitPercent).cache()
       else
         dsInit = ds.sample(false, dsIncrePercent).cache()
-      
       
       //Step 2
       //Subtract the sampled molecules from main dataset
