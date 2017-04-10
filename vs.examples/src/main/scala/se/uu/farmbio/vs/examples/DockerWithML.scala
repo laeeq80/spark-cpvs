@@ -22,7 +22,6 @@ object DockerWithML extends Logging {
     firstFile: String = null,
     secondFile: String = null,
     dsInitPercent: Double = 0.1,
-    dsIncrePercent: Double = 0.05,
     calibrationSize: Int = 200,
     numIterations: Int = 50,
     topN: Int = 30,
@@ -58,9 +57,6 @@ object DockerWithML extends Logging {
       opt[Double]("dsInitPercent")
         .text("initial Data Size Percent to be docked (default: 0.1)")
         .action((x, c) => c.copy(dsInitPercent = x))
-      opt[Double]("dsIncrePercent")
-        .text("incremental Data Size Percent to be docked (default: 0.05)")
-        .action((x, c) => c.copy(dsIncrePercent = x))
       opt[Int]("calibrationSize")
         .text("calibration Set Size from training set (default: 200)")
         .action((x, c) => c.copy(calibrationSize = x))
@@ -113,7 +109,6 @@ object DockerWithML extends Logging {
 
     val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
       .dockWithML(params.dsInitPercent,
-        params.dsIncrePercent,
         params.calibrationSize,
         params.numIterations,
         params.badIn,

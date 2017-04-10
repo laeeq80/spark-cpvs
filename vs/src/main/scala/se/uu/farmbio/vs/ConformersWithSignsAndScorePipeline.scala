@@ -13,7 +13,6 @@ import se.uu.farmbio.cp.alg.SVM
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
     dsInitPercent: Double,
-    dsIncrePercent: Double,
     calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
@@ -123,7 +122,6 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
   override def dockWithML(
     dsInitPercent: Double,
-    dsIncrePercent: Double,
     calibrationSize: Int,
     numIterations: Int,
     badIn: Int,
@@ -148,6 +146,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var calibrationSizeDynamic: Int = 0
     var dsBadInTrainingSet: RDD[String] = null
     var dsGoodInTrainingSet: RDD[String] = null
+    var dsIncrePercent = dsInitPercent
 
     //Converting complete dataset (dsComplete) to feature vector required for conformal prediction
     //We also need to keep intact the poses so at the end we know
@@ -163,11 +162,14 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       //Step 1
       //Get a sample of the data
+      if (counter > 1)
+        dsIncrePercent = dsIncrePercent + 0.03
       if (dsInit == null)
         dsInit = ds.sample(false, dsInitPercent).cache()
       else
         dsInit = ds.sample(false, dsIncrePercent).cache()
-
+      
+      
       //Step 2
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
