@@ -9,6 +9,7 @@ import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
 import java.io.StringWriter
 import se.uu.farmbio.cp.alg.SVM
+import org.apache.spark.storage.StorageLevel
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
@@ -122,8 +123,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     extends SBVSPipeline(rdd) with ConformersWithSignsAndScoreTransforms {
 
   override def dockWithML(
-    dsInitPercent: Double,
-    incrementInPercent: Double,
+    dsInitSize: Double,
+    dsIncreSize: Double,
     calibrationPercent: Double,
     numIterations: Int,
     badIn: Int,
@@ -134,12 +135,13 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
     //initializations
     var poses: RDD[String] = null
+    var posesTemp: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
     var dsZeroRemoved: RDD[(String)] = null
     var cumulativeZeroRemoved: RDD[(String)] = null
-    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
-    var dsComplete: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).cache()
+    var dsTemp: RDD[String] = null
     var eff: Double = 0.0
     var counter: Int = 1
     var effCounter: Int = 0
@@ -148,13 +150,12 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var calibrationSizeDynamic: Int = 0
     var dsBadInTrainingSet: RDD[String] = null
     var dsGoodInTrainingSet: RDD[String] = null
-    var dsIncrePercent = dsInitPercent
-
-    //Converting complete dataset (dsComplete) to feature vector required for conformal prediction
+    
+    //Converting complete dataset (ds) to feature vector required for conformal prediction
     //We also need to keep intact the poses so at the end we know
     //which molecules are predicted as bad and remove them from main set
 
-    val fvDsComplete = dsComplete.flatMap {
+    val fvDsComplete = ds.flatMap {
       sdfmol =>
         ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
           .map { case (vector) => (sdfmol, vector) }
@@ -164,17 +165,16 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       //Step 1
       //Get a sample of the data
-      if (counter > 2)
-        dsIncrePercent = dsIncrePercent + incrementInPercent
       if (dsInit == null)
-        dsInit = ds.sample(false, dsInitPercent).cache()
+        dsInit = ds.sample(false, 100/(ds.count/dsInitSize)).cache()
       else
-        dsInit = ds.sample(false, dsIncrePercent).cache()
+        dsInit = ds.sample(false, 100/(ds.count/dsIncreSize)).cache()
       
       //Step 2
       //Subtract the sampled molecules from main dataset
-      ds = ds.subtract(dsInit)
-
+      dsTemp = ds.subtract(dsInit).cache()
+      ds.unpersist()
+      
       //Step 3
       //Mocking the sampled dataset. We already have scores, docking not required
       val dsDock = dsInit
@@ -182,14 +182,17 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         + "   ################################################################\n")
 
       logInfo("JOB_INFO: dsInit in cycle " + counter + " is " + dsInit.count)
-
+      dsInit.unpersist()
+      
       //Step 4
       //Keeping processed poses
       if (poses == null)
         poses = dsDock
       else
-        poses = poses.union(dsDock)
-
+        posesTemp = poses.union(dsDock).cache()
+      poses.unpersist()
+      poses = posesTemp
+      
       //Step 5 and 6 Computing dsTopAndBottom
       val parseScoreRDD = dsDock.map(PosePipeline.parseScore).cache
       val parseScoreHistogram = parseScoreRDD.histogram(10)
@@ -206,7 +209,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         dsTrain = dsTopAndBottom
       else
         dsTrain = dsTrain.union(dsTopAndBottom)
-
+      dsTrain.cache()  
 
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
@@ -217,7 +220,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
         lpDsTrain.cache, calibrationSizeDynamic, stratified)
-
+      dsTrain.unpersist()  
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
@@ -240,8 +243,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         .map { case (sdfmol, prediction) => sdfmol }.cache
       
 
-      ds = ds.subtract(dsZeroPredicted)
-    
+      ds = dsTemp.subtract(dsZeroPredicted).cache()
+      dsTemp.unpersist()
 
       //Computing efficiency for stopping
       val totalCount = sc.accumulator(0.0)
@@ -258,8 +261,6 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       eff = singletonCount.value / totalCount.value
       logInfo("JOB_INFO: Efficiency in cycle " + counter + " is " + eff)
       
-      dsInit.unpersist()
-      
       counter = counter + 1
       if (eff > 0.8)
         effCounter = effCounter + 1
@@ -268,6 +269,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
                 
     } while (effCounter < 2 && !singleCycle)
     
+    //Removing fvDsComplete from memory  
+    fvDsComplete.unpersist()
+      
     //Docking rest of the dsOne mols
     val dsDockOne = dsOnePredicted.subtract(poses).cache()
     logInfo("JOB_INFO: Number of mols in dsDockOne are " + dsDockOne.count)
@@ -276,7 +280,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     if (poses == null)
       poses = dsDockOne
     else
-      poses = poses.union(dsDockOne)
+      poses = poses.union(dsDockOne).cache()
     logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
     new PosePipeline(poses)
 
