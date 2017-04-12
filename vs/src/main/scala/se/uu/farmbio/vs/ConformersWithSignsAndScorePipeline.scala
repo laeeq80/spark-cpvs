@@ -13,8 +13,8 @@ import org.apache.spark.storage.StorageLevel
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
-    dsInitPercent: Double,
-    incrementInPercent: Double,
+    dsInitSize: Int,
+    dsIncreSize: Int,
     calibrationPercent: Double,
     numIterations: Int,
     badIn: Int,
@@ -123,8 +123,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     extends SBVSPipeline(rdd) with ConformersWithSignsAndScoreTransforms {
 
   override def dockWithML(
-    dsInitSize: Double,
-    dsIncreSize: Double,
+    dsInitSize: Int,
+    dsIncreSize: Int,
     calibrationPercent: Double,
     numIterations: Int,
     badIn: Int,
@@ -166,9 +166,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 1
       //Get a sample of the data
       if (dsInit == null)
-        dsInit = ds.sample(false, 100/(ds.count/dsInitSize)).cache()
+        dsInit = ds.sample(false, 100.0/(ds.count/dsInitSize)).cache()
       else
-        dsInit = ds.sample(false, 100/(ds.count/dsIncreSize)).cache()
+        dsInit = ds.sample(false, 100.0/(ds.count/dsIncreSize)).cache()
       
       //Step 2
       //Subtract the sampled molecules from main dataset
@@ -282,6 +282,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     else
       poses = poses.union(dsDockOne).cache()
     logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
+   
     new PosePipeline(poses)
 
   }
