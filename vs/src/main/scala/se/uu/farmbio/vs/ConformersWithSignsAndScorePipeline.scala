@@ -150,7 +150,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var calibrationSizeDynamic: Int = 0
     var dsBadInTrainingSet: RDD[String] = null
     var dsGoodInTrainingSet: RDD[String] = null
-    
+
     //Converting complete dataset (ds) to feature vector required for conformal prediction
     //We also need to keep intact the poses so at the end we know
     //which molecules are predicted as bad and remove them from main set
@@ -162,19 +162,18 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     }.cache()
 
     do {
-
       //Step 1
       //Get a sample of the data
       if (dsInit == null)
-        dsInit = ds.sample(false, dsInitSize/ds.count().toDouble).cache()
+        dsInit = ds.sample(false, dsInitSize / ds.count().toDouble).cache()
       else
-        dsInit = ds.sample(false, dsIncreSize/ds.count().toDouble).cache()
-      
+        dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble).cache()
+
       //Step 2
       //Subtract the sampled molecules from main dataset
       dsTemp = ds.subtract(dsInit).cache()
       ds.unpersist()
-      
+
       //Step 3
       //Mocking the sampled dataset. We already have scores, docking not required
       val dsDock = dsInit
@@ -182,17 +181,17 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         + "   ################################################################\n")
 
       logInfo("JOB_INFO: dsInit in cycle " + counter + " is " + dsInit.count)
-      dsInit.unpersist()
-      
+
       //Step 4
       //Keeping processed poses
-      if (poses == null)
-        poses = dsDock
-      else
+      if (poses == null) {
+        posesTemp = dsDock.cache()
+      } else {
         posesTemp = poses.union(dsDock).cache()
-      poses.unpersist()
+        poses.unpersist()
+      }
       poses = posesTemp
-      
+
       //Step 5 and 6 Computing dsTopAndBottom
       val parseScoreRDD = dsDock.map(PosePipeline.parseScore).cache
       val parseScoreHistogram = parseScoreRDD.histogram(10)
@@ -209,7 +208,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         dsTrain = dsTopAndBottom
       else
         dsTrain = dsTrain.union(dsTopAndBottom)
-      dsTrain.cache()  
+      dsTrain.cache()
 
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
@@ -220,12 +219,12 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
         lpDsTrain.cache, calibrationSizeDynamic, stratified)
-      dsTrain.unpersist()  
+      
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
-            
+
       lpDsTrain.unpersist()
       properTraining.unpersist()
 
@@ -234,14 +233,12 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, confidence))
       }
 
-         
       val dsZeroPredicted: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
       dsOnePredicted = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
-      
 
       ds = dsTemp.subtract(dsZeroPredicted).cache()
       dsTemp.unpersist()
@@ -260,29 +257,30 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       eff = singletonCount.value / totalCount.value
       logInfo("JOB_INFO: Efficiency in cycle " + counter + " is " + eff)
-      
+
       counter = counter + 1
-      if (eff > 0.8)
+      if (eff > 0.8) {
         effCounter = effCounter + 1
-      else
+      } else {
         effCounter = 0
-                
+      }
+      dsInit.unpersist()
     } while (effCounter < 2 && !singleCycle)
-    
+
     //Removing fvDsComplete from memory  
     fvDsComplete.unpersist()
-      
+
     //Docking rest of the dsOne mols
     val dsDockOne = dsOnePredicted.subtract(poses).cache()
     logInfo("JOB_INFO: Number of mols in dsDockOne are " + dsDockOne.count)
-    
+
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
       poses = dsDockOne
     else
       poses = poses.union(dsDockOne).cache()
     logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
-   
+
     new PosePipeline(poses)
 
   }
