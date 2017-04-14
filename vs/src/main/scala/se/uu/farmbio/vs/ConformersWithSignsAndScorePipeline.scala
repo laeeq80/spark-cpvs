@@ -264,11 +264,11 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       } else {
         effCounter = 0
       }
-      dsInit.unpersist()
+      if (effCounter < 2) {
+        dsInit.unpersist()
+      }
+      
     } while (effCounter < 2 && !singleCycle)
-
-    //Removing fvDsComplete from memory  
-    fvDsComplete.unpersist()
 
     //Docking rest of the dsOne mols
     val dsDockOne = dsOnePredicted.subtract(poses).cache()
@@ -280,7 +280,13 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     else
       poses = poses.union(dsDockOne).cache()
     logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
-
+    
+    //Removing datasets from memory  
+    fvDsComplete.unpersist()
+    dsInit.unpersist()
+    dsTrain.unpersist()
+    ds.unpersist()
+    
     new PosePipeline(poses)
 
   }
