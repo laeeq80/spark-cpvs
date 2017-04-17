@@ -126,18 +126,18 @@ object DockerWithML extends Logging {
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 
     val mols1 = new SBVSPipeline(sc)
-      .readPoseFile(params.firstFile)
+      .readConformerFile(params.firstFile)
       .getMolecules
-      .coalesce(1)
+     
    logInfo("JOB_INFO: Number of mols in mols1 are " + mols1.count())  
       
     val Array1 = mols1.map { mol => PosePipeline.parseScore(mol) }.collect()
     logInfo("JOB_INFO: Number of mols in Array1 are " + Array1.length)
     
     val mols2 = new SBVSPipeline(sc)
-      .readPoseFile(params.secondFile)
+      .readConformerFile(params.secondFile)
       .getMolecules
-      .coalesce(1)
+
     logInfo("JOB_INFO: Number of mols in mols2 are " + mols2.count())  
         
     val Array2 = mols2.map { mol => PosePipeline.parseScore(mol) }.collect()
