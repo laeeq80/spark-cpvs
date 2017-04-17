@@ -136,10 +136,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     //initializations
     var poses: RDD[String] = null
     var posesTemp: RDD[String] = null
+    var trainTemp: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var dsZeroRemoved: RDD[(String)] = null
-    var cumulativeZeroRemoved: RDD[(String)] = null
     var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).cache()
     var dsTemp: RDD[String] = null
     var eff: Double = 0.0
@@ -202,14 +201,16 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
           ConformersWithSignsAndScorePipeline.labelTopAndBottom(mol, score, parseScoreHistogram._1, badIn, goodIn)
       }.map(_.trim).filter(_.nonEmpty)
 
-      parseScoreRDD.unpersist()
+      
       //Step 7 Union dsTrain and dsTopAndBottom
-      if (dsTrain == null)
-        dsTrain = dsTopAndBottom
-      else
-        dsTrain = dsTrain.union(dsTopAndBottom)
-      dsTrain.cache()
-
+      if (dsTrain == null) {
+        trainTemp = dsTopAndBottom
+      } else {
+        trainTemp = dsTrain.union(dsTopAndBottom)
+        dsTrain.unpersist()
+      }
+      dsTrain = trainTemp
+      parseScoreRDD.unpersist()  
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsAndScorePipeline.getLPRDD(sdfmol)
@@ -219,7 +220,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
         lpDsTrain.cache, calibrationSizeDynamic, stratified)
-      
+
       //Train ICP
       val svm = new SVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
@@ -264,10 +265,10 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       } else {
         effCounter = 0
       }
-      if (effCounter < 2) {
-        dsInit.unpersist()
-      }
       
+        dsInit.unpersist()
+      
+
     } while (effCounter < 2 && !singleCycle)
 
     //Docking rest of the dsOne mols
@@ -280,13 +281,12 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     else
       poses = poses.union(dsDockOne).cache()
     logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
-    
+
     //Removing datasets from memory  
     fvDsComplete.unpersist()
-    dsInit.unpersist()
     dsTrain.unpersist()
     ds.unpersist()
-    
+
     new PosePipeline(poses)
 
   }
