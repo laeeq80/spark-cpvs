@@ -132,8 +132,8 @@ object DockerWithML extends Logging {
     
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
   
-    val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 1)
-      .map(_._2.toString)
+    val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile,1)
+      .map(_._2.toString).flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
     logInfo("JOB_INFO: Number of mols in rdd are " + rdd.count())  
       
     val mols1 = new SBVSPipeline(sc)
