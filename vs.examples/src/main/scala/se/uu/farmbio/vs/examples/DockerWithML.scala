@@ -128,17 +128,19 @@ object DockerWithML extends Logging {
     val mols1 = new SBVSPipeline(sc)
       .readPoseFile(params.firstFile)
       .getMolecules
-      .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-
+   logInfo("Number of mols in mols1 are " + mols1.count())  
+      
     val Array1 = mols1.map { mol => PosePipeline.parseScore(mol) }.collect()
-
+    logInfo("Number of mols in Array1 are " + Array1.length)
+    
     val mols2 = new SBVSPipeline(sc)
       .readPoseFile(params.secondFile)
       .getMolecules
-      .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-    
+    logInfo("Number of mols in mols2 are " + mols2.count())  
+        
     val Array2 = mols2.map { mol => PosePipeline.parseScore(mol) }.collect()
-
+    logInfo("Number of mols in Array2 are " + Array2.length)
+    
     var counter: Double = 0.0
     for (i <- 0 to Array1.length - 1)
       for (j <- 0 to Array2.length - 1)
