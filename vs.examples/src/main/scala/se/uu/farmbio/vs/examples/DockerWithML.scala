@@ -122,11 +122,12 @@ object DockerWithML extends Logging {
         params.stratified,
         params.confidence)
     val res = posesWithSigns.getTopPoses(params.topN)
-
+    logInfo("JOB_INFO: Number of mols in res are " + res.length)
+    
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 
     val mols1 = new SBVSPipeline(sc)
-      .readConformerFile(params.firstFile)
+      .readPoseFile(params.firstFile)
       .getMolecules
      
    logInfo("JOB_INFO: Number of mols in mols1 are " + mols1.count())  
@@ -135,7 +136,7 @@ object DockerWithML extends Logging {
     logInfo("JOB_INFO: Number of mols in Array1 are " + Array1.length)
     
     val mols2 = new SBVSPipeline(sc)
-      .readConformerFile(params.secondFile)
+      .readPoseFile(params.secondFile)
       .getMolecules
 
     logInfo("JOB_INFO: Number of mols in mols2 are " + mols2.count())  
