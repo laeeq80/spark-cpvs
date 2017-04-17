@@ -9,8 +9,6 @@ import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
 import se.uu.farmbio.vs.ConformersWithSignsAndScorePipeline
 
-
-
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.io.Text
 import se.uu.farmbio.parsers.SDFInputFormat
@@ -90,7 +88,7 @@ object DockerWithML extends Logging {
         .action((_, c) => c.copy(stratified = true))
       opt[Double]("confidence")
         .text("confidence for conformal prediction (default: 1 - 0.2)")
-        .action((x, c) => c.copy(confidence = x)) 
+        .action((x, c) => c.copy(confidence = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -129,31 +127,19 @@ object DockerWithML extends Logging {
         params.confidence)
     val res = posesWithSigns.getTopPoses(params.topN)
     logInfo("JOB_INFO: Number of mols in res are " + res.length)
-    
-    sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
-  
-    val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile,1)
-      .map(_._2.toString).flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
-    logInfo("JOB_INFO: Number of mols in rdd are " + rdd.count())  
-      
-    val mols1 = new SBVSPipeline(sc)
-      .readPoseFile(params.firstFile)
-      .getMolecules
-     
-   logInfo("JOB_INFO: Number of mols in mols1 are " + mols1.count())  
-      
-    val Array1 = mols1.map { mol => PosePipeline.parseScore(mol) }.collect()
-    logInfo("JOB_INFO: Number of mols in Array1 are " + Array1.length)
-    
-    val mols2 = new SBVSPipeline(sc)
-      .readPoseFile(params.secondFile)
-      .getMolecules
 
-    logInfo("JOB_INFO: Number of mols in mols2 are " + mols2.count())  
-        
+    sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
+
+    val mols1 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 1)
+      .map(_._2.toString).flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
+
+    val Array1 = mols1.map { mol => PosePipeline.parseScore(mol) }.collect()
+
+    val mols2 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 1)
+      .map(_._2.toString).flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
+
     val Array2 = mols2.map { mol => PosePipeline.parseScore(mol) }.collect()
-    logInfo("JOB_INFO: Number of mols in Array2 are " + Array2.length)
-    
+
     var counter: Double = 0.0
     for (i <- 0 to Array1.length - 1)
       for (j <- 0 to Array2.length - 1)
