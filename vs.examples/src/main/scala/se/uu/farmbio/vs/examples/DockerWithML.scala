@@ -9,6 +9,12 @@ import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
 import se.uu.farmbio.vs.ConformersWithSignsAndScorePipeline
 
+
+
+import org.apache.hadoop.io.LongWritable
+import org.apache.hadoop.io.Text
+import se.uu.farmbio.parsers.SDFInputFormat
+
 /**
  * @author laeeq
  */
@@ -125,7 +131,11 @@ object DockerWithML extends Logging {
     logInfo("JOB_INFO: Number of mols in res are " + res.length)
     
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
-
+  
+    val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 1)
+      .map(_._2.toString)
+    logInfo("JOB_INFO: Number of mols in rdd are " + rdd.count())  
+      
     val mols1 = new SBVSPipeline(sc)
       .readPoseFile(params.firstFile)
       .getMolecules
