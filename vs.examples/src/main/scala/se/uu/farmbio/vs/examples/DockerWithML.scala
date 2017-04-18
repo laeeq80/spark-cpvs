@@ -126,17 +126,15 @@ object DockerWithML extends Logging {
         params.stratified,
         params.confidence)
     val res = posesWithSigns.getTopPoses(params.topN)
-    logInfo("JOB_INFO: Number of mols in res are " + res.length)
-
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
-
-    val mols1 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 1)
-      .map(_._2.toString).flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
-
+    
+    val mols1 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
+      .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
+         
     val Array1 = mols1.map { mol => PosePipeline.parseScore(mol) }.collect()
 
-    val mols2 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 1)
-      .map(_._2.toString).flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
+    val mols2 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 2)
+      .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
 
     val Array2 = mols2.map { mol => PosePipeline.parseScore(mol) }.collect()
 
