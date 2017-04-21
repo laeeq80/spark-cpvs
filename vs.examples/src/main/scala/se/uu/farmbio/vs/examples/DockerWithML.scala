@@ -34,8 +34,8 @@ object DockerWithML extends Logging {
     goodIn: Int = 4,
     singleCycle: Boolean = false,
     stratified: Boolean = false,
-    confidence: Double = 0.2
-  )
+    confidence: Double = 0.2,
+    size: String = "30")
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -97,6 +97,9 @@ object DockerWithML extends Logging {
       opt[Double]("confidence")
         .text("confidence for conformal prediction (default: 1 - 0.2)")
         .action((x, c) => c.copy(confidence = x))
+      opt[String]("size")
+        .text("it controls how many molecules are handled within a task (default: 30).")
+        .action((x, c) => c.copy(size = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -119,6 +122,7 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
+    sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
 
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
@@ -137,17 +141,17 @@ object DockerWithML extends Logging {
         params.confidence)
     val cachedPoses = poses.getMolecules.cache()
     val res = poses.getTopPoses(params.topN)
-    
+
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
-    
+
     val mols1 = new SBVSPipeline(sc)
-      .readPoseFile(params.firstFile,  OEDockMethod.Chemgauss4)
+      .readPoseFile(params.firstFile, OEDockMethod.Chemgauss4)
       .getMolecules
 
     val Array1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
 
     val mols2 = new SBVSPipeline(sc)
-      .readPoseFile(params.secondFile,  OEDockMethod.Chemgauss4)
+      .readPoseFile(params.secondFile, OEDockMethod.Chemgauss4)
       .getMolecules
 
     val Array2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
