@@ -233,11 +233,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
       counter = counter + 1
       dsInit.unpersist()
-      if (eff >= 2) {
+      //if (eff >= 2) {
         dsOnePredicted = predictions
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
           .map { case (sdfmol, prediction) => sdfmol }.cache
-      }
+      //}
     } while (effCounter < 2 && !singleCycle)
 
     dsOnePredicted = dsOnePredicted.subtract(poses)
