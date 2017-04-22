@@ -144,7 +144,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
-        .map(_.trim).filter(_.nonEmpty)
+        .map(_.trim).filter(_.nonEmpty).cache()
      logInfo("JOB_INFO: Docking Completed in cycle " + counter)
         
       //Step 3
@@ -163,7 +163,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 5 and 6 Computing dsTopAndBottom
       val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method))
       val parseScoreHistogram = parseScoreRDD.histogram(10)
-
+      
       val dsTopAndBottom = dsDock.map {
         case (mol) =>
           val score = PosePipeline.parseScore(method)(mol)
