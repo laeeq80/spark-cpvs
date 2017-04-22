@@ -11,6 +11,10 @@ import se.uu.farmbio.vs.PosePipeline
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
 
+import org.apache.hadoop.io.LongWritable
+import org.apache.hadoop.io.Text
+import se.uu.farmbio.parsers.SDFInputFormat
+
 /**
  * @author laeeq
  */
@@ -144,15 +148,13 @@ object DockerWithML extends Logging {
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 
-    val mols1 = new SBVSPipeline(sc)
-      .readPoseFile(params.firstFile, OEDockMethod.Chemgauss4)
-      .getMolecules
+    val mols1 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
+      .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
 
     val Array1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
 
-    val mols2 = new SBVSPipeline(sc)
-      .readPoseFile(params.secondFile, OEDockMethod.Chemgauss4)
-      .getMolecules
+    val mols2 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 2)
+      .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
 
     val Array2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
 
