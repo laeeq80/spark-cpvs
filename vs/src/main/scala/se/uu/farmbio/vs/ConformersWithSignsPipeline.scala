@@ -137,14 +137,16 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         dsInit = ds.sample(false, dsInitSize / ds.count().toDouble).cache()
       else
         dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble).cache()
-
+     logInfo("JOB_INFO: Sample taken for docking in cycle " + counter) 
+        
       //Step 2
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
         .map(_.trim).filter(_.nonEmpty)
-
+     logInfo("JOB_INFO: Docking Completed in cycle " + counter)
+        
       //Step 3
       //Subtract the sampled molecules from main dataset
       ds.cache()
@@ -192,7 +194,9 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
       lpDsTrain.unpersist()
       properTraining.unpersist()
-
+      
+      logInfo("JOB_INFO: Training Completed in cycle " + counter)
+      
       //Step 9 Prediction using our model on complete dataset
       val predictions = fvDsComplete.map {
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, confidence))
