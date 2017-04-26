@@ -126,7 +126,7 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-    sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
+    //sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
 
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
