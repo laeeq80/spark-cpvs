@@ -129,7 +129,7 @@ object DockerWithML extends Logging {
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
     
     val poses = new SBVSPipeline(sc)
-      .readConformerFile(params.conformersFile)
+      .readConformerFile(params.conformersFile).repartition
     sc.getConf.getAll.foreach(println)
     val newPoses = poses.generateSignatures()
       .dockWithML(params.receptorFile,
