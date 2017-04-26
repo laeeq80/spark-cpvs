@@ -126,11 +126,12 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-    //sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
-
+    sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
+    
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-      .generateSignatures()
+    sc.getConf.getAll.foreach(println)
+    val newPoses = poses.generateSignatures()
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
@@ -143,8 +144,8 @@ object DockerWithML extends Logging {
         params.singleCycle,
         params.stratified,
         params.confidence)
-    val cachedPoses = poses.getMolecules.cache()
-    val res = poses.getTopPoses(params.topN)
+    val cachedPoses = newPoses.getMolecules.cache()
+    val res = newPoses.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 
