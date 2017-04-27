@@ -122,14 +122,14 @@ object DockerWithML extends Logging {
     if (params.oeLicensePath != null) {
       conf.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
     }
-    if (params.master != null) {
+    /*if (params.master != null) {
       conf.setMaster(params.master)
-    }
+    }*/
     val sc = new SparkContext(conf)
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
     
     val poses = new SBVSPipeline(sc)
-      .readConformerFile(params.conformersFile).repartition
+      .readConformerFile(params.conformersFile)
     sc.getConf.getAll.foreach(println)
     logInfo("JOB_INFO: Number of partitions are " + poses.getMolecules.getNumPartitions)
     val newPoses = poses.generateSignatures()
