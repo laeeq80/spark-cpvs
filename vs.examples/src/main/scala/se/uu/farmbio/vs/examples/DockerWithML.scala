@@ -122,9 +122,9 @@ object DockerWithML extends Logging {
     if (params.oeLicensePath != null) {
       conf.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
     }
-    /*if (params.master != null) {
+    if (params.master != null) {
       conf.setMaster(params.master)
-    }*/
+    }
     val sc = new SparkContext(conf)
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
     
