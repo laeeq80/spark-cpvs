@@ -8,6 +8,7 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
 import java.io.StringWriter
+import org.apache.spark.storage.StorageLevel
 
 trait ConformersWithSignsTransforms {
   def dockWithML(
@@ -150,13 +151,10 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 
       //Step 3
-      //Subtract the sampled molecules from main dataset
-      // ADD CONDITION HERE
-      if (ds.getStorageLevel == "StorageLevel.None") {
-        ds.cache()
-      }
-      ds = ds.subtract(dsInit)
-
+      //Subtract the sampled molecules from main dataset             
+      dsTemp = ds.subtract(dsInit).cache()
+      ds.unpersist()
+      
       //Step 4
       //Keeping processed poses
       if (poses == null) {
@@ -212,8 +210,9 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         .map { case (sdfmol, prediction) => sdfmol }.cache
 
       //Step 10 Subtracting {0} moles from dataset
-      ds = ds.subtract(dsZeroPredicted)
-
+      ds = dsTemp.subtract(dsZeroPredicted).cache()
+      dsTemp.unpersist()
+      
       dsZeroPredicted.unpersist()
 
       //Computing efficiency for stopping loop
