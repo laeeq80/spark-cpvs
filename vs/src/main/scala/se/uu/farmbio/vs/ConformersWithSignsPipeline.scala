@@ -23,6 +23,7 @@ trait ConformersWithSignsTransforms {
     singleCycle: Boolean,
     stratified: Boolean,
     confidence: Double): SBVSPipeline with PoseTransforms
+
 }
 
 object ConformersWithSignsPipeline extends Serializable {
@@ -138,19 +139,22 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         dsInit = ds.sample(false, dsInitSize / ds.count().toDouble)
       else
         dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble)
-     logInfo("JOB_INFO: Sample taken for docking in cycle " + counter) 
-        
+      logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
+
       //Step 2
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
         .map(_.trim).filter(_.nonEmpty).cache()
-     logInfo("JOB_INFO: Docking Completed in cycle " + counter)
-        
+      logInfo("JOB_INFO: Docking Completed in cycle " + counter)
+
       //Step 3
       //Subtract the sampled molecules from main dataset
-      ds.cache()
+      // ADD CONDITION HERE
+      if (ds.getStorageLevel == "StorageLevel.None") {
+        ds.cache()
+      }
       ds = ds.subtract(dsInit)
 
       //Step 4
@@ -164,7 +168,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 5 and 6 Computing dsTopAndBottom
       val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method))
       val parseScoreHistogram = parseScoreRDD.histogram(10)
-      
+
       val dsTopAndBottom = dsDock.map {
         case (mol) =>
           val score = PosePipeline.parseScore(method)(mol)
@@ -195,9 +199,9 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
       lpDsTrain.unpersist()
       properTraining.unpersist()
-      
+
       logInfo("JOB_INFO: Training Completed in cycle " + counter)
-      
+
       //Step 9 Prediction using our model on complete dataset
       val predictions = fvDsComplete.map {
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, confidence))
