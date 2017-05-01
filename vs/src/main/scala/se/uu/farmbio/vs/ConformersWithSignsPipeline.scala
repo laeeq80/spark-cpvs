@@ -112,6 +112,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var trainTemp: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
     var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).cache()
+    var dsComplete: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var dsTemp: RDD[String] = null
     var eff: Double = 0.0
     var counter: Int = 1
@@ -123,20 +124,20 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     //We also need to keep intact the poses so at the end we know
     //which molecules are predicted as bad and remove them from main set
 
-    val fvDsComplete = ds.flatMap {
+    val fvDsComplete = dsComplete.flatMap {
       sdfmol =>
         ConformersWithSignsPipeline.getFeatureVector(sdfmol)
           .map { case (vector) => (sdfmol, vector) }
-    }.cache()
+    }
 
     do {
 
       //Step 1
       //Get a sample of the data
       if (dsInit == null)
-        dsInit = ds.sample(false, dsInitSize / ds.count().toDouble).cache()
+        dsInit = ds.sample(false, dsInitSize / ds.count().toDouble)
       else
-        dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble).cache()
+        dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble)
      logInfo("JOB_INFO: Sample taken for docking in cycle " + counter) 
         
       //Step 2
@@ -232,7 +233,6 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         effCounter = 0
       }
       counter = counter + 1
-      dsInit.unpersist()
       if (eff >= 2) {
         dsOnePredicted = predictions
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
