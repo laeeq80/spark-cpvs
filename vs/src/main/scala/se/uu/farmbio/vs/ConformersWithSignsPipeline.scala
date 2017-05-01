@@ -113,7 +113,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var posesTemp: RDD[String] = null
     var trainTemp: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).cache()
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK)
     var dsComplete: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     var dsTemp: RDD[String] = null
     var eff: Double = 0.0
@@ -147,15 +147,10 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
-        .map(_.trim).filter(_.nonEmpty).cache()
+        .map(_.trim).filter(_.nonEmpty).persist(StorageLevel.MEMORY_AND_DISK)
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
-
-      //Step 3
-      //Subtract the sampled molecules from main dataset             
-      dsTemp = ds.subtract(dsInit).cache()
-      ds.unpersist()
       
-      //Step 4
+      //Step 3
       //Keeping processed poses
       if (poses == null) {
         poses = dsDock
@@ -163,7 +158,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         poses = poses.union(dsDock)
       }
 
-      //Step 5 and 6 Computing dsTopAndBottom
+      //Step 4 and 5 Computing dsTopAndBottom
       val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method))
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
@@ -172,6 +167,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
           val score = PosePipeline.parseScore(method)(mol)
           ConformersWithSignsPipeline.labelTopAndBottom(mol, score, parseScoreHistogram._1, badIn, goodIn)
       }.map(_.trim).filter(_.nonEmpty)
+      
+      //Step 6
+      //Subtract the sampled molecules from main dataset             
+      dsTemp = ds.subtract(dsInit).persist(StorageLevel.MEMORY_AND_DISK)
+      ds.unpersist()
 
       //Step 7 Union dsTrain and dsTopAndBottom
       if (dsTrain == null) {
@@ -241,6 +241,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
           .map { case (sdfmol, prediction) => sdfmol }.cache
       }
+      dsDock.unpersist()
+      
     } while (effCounter < 2 && !singleCycle)
 
     dsOnePredicted = dsOnePredicted.subtract(poses)
