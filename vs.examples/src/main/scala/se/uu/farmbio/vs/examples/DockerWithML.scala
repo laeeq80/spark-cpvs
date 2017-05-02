@@ -7,13 +7,12 @@ import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
-
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
-
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.io.Text
 import se.uu.farmbio.parsers.SDFInputFormat
+import se.uu.farmbio.vs.ConformersWithSignsPipeline
 
 /**
  * @author laeeq
@@ -125,6 +124,8 @@ object DockerWithML extends Logging {
     if (params.master != null) {
       conf.setMaster(params.master)
     }
+    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf.registerKryoClasses(Array(classOf[ConformersWithSignsPipeline]))
     val sc = new SparkContext(conf)
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
     
