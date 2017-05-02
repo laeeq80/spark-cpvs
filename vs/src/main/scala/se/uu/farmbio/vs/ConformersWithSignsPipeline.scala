@@ -170,10 +170,10 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       if (dsTrain == null) {
         trainTemp = dsTopAndBottom
       } else {
-        trainTemp = dsTrain.union(dsTopAndBottom).persist(StorageLevel.MEMORY_ONLY)
+        trainTemp = dsTrain.union(dsTopAndBottom).persist(StorageLevel.MEMORY_ONLY_SER)
         dsTrain.unpersist()
       }
-      dsTrain = trainTemp.persist(StorageLevel.MEMORY_ONLY)
+      dsTrain = trainTemp.persist(StorageLevel.MEMORY_ONLY_SER)
       trainTemp.unpersist()
 
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
@@ -188,7 +188,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         lpDsTrain.persist(StorageLevel.MEMORY_ONLY), calibrationSizeDynamic, stratified)
 
       //Train ICP
-      val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_ONLY), numIterations)
+      val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_ONLY_SER), numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
       lpDsTrain.unpersist()
