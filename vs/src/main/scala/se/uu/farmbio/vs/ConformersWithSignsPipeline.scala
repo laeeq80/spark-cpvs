@@ -146,7 +146,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
-        .map(_.trim).filter(_.nonEmpty).persist(StorageLevel.MEMORY_AND_DISK_SER)
+        .map(_.trim).filter(_.nonEmpty).persist(StorageLevel.DISK_ONLY)
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 
       //Step 3
