@@ -152,16 +152,13 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 3
       //Keeping processed poses
       if (poses == null) {
-        posesTemp = dsDock.persist(StorageLevel.MEMORY_AND_DISK_SER)
+        poses = dsDock
       } else {
-        posesTemp = poses.union(dsDock).persist(StorageLevel.MEMORY_AND_DISK_SER)
-        poses.unpersist()
+        poses = poses.union(dsDock)
       }
-      poses = posesTemp.persist(StorageLevel.MEMORY_AND_DISK_SER)
-      posesTemp.unpersist()
 
       //Step 4 and 5 Computing dsTopAndBottom
-      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method))
+      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).persist(StorageLevel.MEMORY_AND_DISK_SER)
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
       val dsTopAndBottom = dsDock.map {
@@ -179,7 +176,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
       dsTrain = trainTemp.persist(StorageLevel.MEMORY_ONLY_SER)
       trainTemp.unpersist()
-
+      parseScoreRDD.unpersist()
+      
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
