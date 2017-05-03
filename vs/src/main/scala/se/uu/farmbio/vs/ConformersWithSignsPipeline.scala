@@ -109,6 +109,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
     //initializations
     var poses: RDD[String] = null
+    var posesTemp: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsRemaining: RDD[String] = null
     var trainTemp: RDD[String] = null
@@ -151,10 +152,13 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 3
       //Keeping processed poses
       if (poses == null) {
-        poses = dsDock
+        posesTemp = dsDock.persist(StorageLevel.MEMORY_AND_DISK_SER)
       } else {
-        poses = poses.union(dsDock)
+        posesTemp = poses.union(dsDock).persist(StorageLevel.MEMORY_AND_DISK_SER)
+        poses.unpersist()
       }
+      poses = posesTemp.persist(StorageLevel.MEMORY_AND_DISK_SER)
+      posesTemp.unpersist()
 
       //Step 4 and 5 Computing dsTopAndBottom
       val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method))
