@@ -112,7 +112,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var dsTrain: RDD[String] = null
     var trainTemp: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.DISK_ONLY)
     var dsTemp: RDD[String] = null
     var eff: Double = 0.0
     var counter: Int = 1
@@ -144,7 +144,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
-        .map(_.trim).filter(_.nonEmpty).persist(StorageLevel.MEMORY_ONLY_SER)
+        .map(_.trim).filter(_.nonEmpty).persist(StorageLevel.DISK_ONLY)
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 
       //Step 3
