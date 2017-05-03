@@ -110,7 +110,6 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     //initializations
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
-    var dsRemaining: RDD[String] = null
     var trainTemp: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
     var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
@@ -137,7 +136,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       if (dsInit == null)
         dsInit = ds.sample(false, dsInitSize / ds.count().toDouble)
       else
-        dsInit = dsRemaining.sample(false, dsIncreSize / dsRemaining.count().toDouble)
+        dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble)
       logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
 
       //Step 2
@@ -145,7 +144,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
-        .map(_.trim).filter(_.nonEmpty).persist(StorageLevel.MEMORY_AND_DISK_SER)
+        .map(_.trim).filter(_.nonEmpty).persist(StorageLevel.MEMORY_ONLY_SER)
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 
       //Step 3
@@ -168,13 +167,10 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 6 Union dsTrain and dsTopAndBottom
       if (dsTrain == null) {
-        trainTemp = dsTopAndBottom
+        dsTrain = dsTopAndBottom
       } else {
-        trainTemp = dsTrain.union(dsTopAndBottom).persist(StorageLevel.MEMORY_ONLY_SER)
-        dsTrain.unpersist()
+        dsTrain = dsTrain.union(dsTopAndBottom)
       }
-      dsTrain = trainTemp.persist(StorageLevel.MEMORY_ONLY_SER)
-      trainTemp.unpersist()
 
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
@@ -185,13 +181,13 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain.persist(StorageLevel.MEMORY_ONLY), calibrationSizeDynamic, stratified)
+        lpDsTrain, calibrationSizeDynamic, stratified)
 
       //Train ICP
       val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_ONLY_SER), numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
-      lpDsTrain.unpersist()
+      
       properTraining.unpersist()
 
       logInfo("JOB_INFO: Training Completed in cycle " + counter)
@@ -207,14 +203,9 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 9 Subtracting the already docked molecules from main dataset
       // and {0} mols             
-      if (dsRemaining == null) {
-        dsTemp = ds.subtract(dsInit.union(dsZeroPredicted))
-      } else {
-        dsTemp = dsRemaining.subtract(dsInit.union(dsZeroPredicted)).persist(StorageLevel.MEMORY_AND_DISK_SER)
-        dsRemaining.unpersist()
-      }
-      dsRemaining = dsTemp.persist(StorageLevel.MEMORY_AND_DISK_SER)
-      dsTemp.unpersist()
+
+      ds = ds.subtract(dsInit.union(dsZeroPredicted)).persist(StorageLevel.MEMORY_ONLY_SER)
+
       //Computing efficiency for stopping loop
       val totalCount = sc.accumulator(0.0)
       val singletonCount = sc.accumulator(0.0)
@@ -242,7 +233,6 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
           .map { case (sdfmol, prediction) => sdfmol }.persist(StorageLevel.MEMORY_ONLY_SER)
       }
 
-      dsDock.unpersist()
     } while (effCounter < 2 && !singleCycle)
 
     dsOnePredicted = dsOnePredicted.subtract(poses)
