@@ -62,11 +62,12 @@ object ConformersWithSignsPipeline extends Serializable {
     res //return the FeatureVector
   }
 
-  private def labelTopAndBottom(sdfRecord: String,
-                                score: Double,
-                                scoreHistogram: Array[Double],
-                                badIn: Int,
-                                goodIn: Int) = {
+  private def labelTopAndBottom(
+    sdfRecord: String,
+    score: Double,
+    scoreHistogram: Array[Double],
+    badIn: Int,
+    goodIn: Int) = {
     val it = SBVSPipeline.CDKInit(sdfRecord)
     val strWriter = new StringWriter()
     val writer = new SDFWriter(strWriter)
@@ -114,7 +115,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var dsRemaining: RDD[String] = null
     var trainTemp: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.DISK_ONLY)
     var dsTemp: RDD[String] = null
     var eff: Double = 0.0
     var counter: Int = 1
@@ -138,18 +139,23 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       if (dsInit == null)
         dsInit = ds.sample(false, dsInitSize / ds.count().toDouble)
       else
-        dsInit = dsRemaining.sample(false, dsIncreSize / dsRemaining.count().toDouble)
+        dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble)
       logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
 
-      //Step 2
+      //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
         .map(_.trim).filter(_.nonEmpty).persist(StorageLevel.DISK_ONLY)
+
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 
-      //Step 3
+      //Step 4
+      //Subtract the sampled molecules from main dataset
+      ds = ds.subtract(dsInit)
+
+      //Step 5
       //Keeping processed poses
       if (poses == null) {
         poses = dsDock
@@ -157,8 +163,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         poses = poses.union(dsDock)
       }
 
-      //Step 4 and 5 Computing dsTopAndBottom
-      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).persist(StorageLevel.MEMORY_AND_DISK_SER)
+      //Step 6 and 7 Computing dsTopAndBottom
+      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).persist(StorageLevel.MEMORY_ONLY)
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
       val dsTopAndBottom = dsDock.map {
@@ -167,32 +173,30 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
           ConformersWithSignsPipeline.labelTopAndBottom(mol, score, parseScoreHistogram._1, badIn, goodIn)
       }.map(_.trim).filter(_.nonEmpty)
 
-      //Step 6 Union dsTrain and dsTopAndBottom
+      //Step 8 Union dsTrain and dsTopAndBottom
       if (dsTrain == null) {
-        trainTemp = dsTopAndBottom
+        dsTrain = dsTopAndBottom
       } else {
-        trainTemp = dsTrain.union(dsTopAndBottom).persist(StorageLevel.MEMORY_ONLY_SER)
-        dsTrain.unpersist()
+        dsTrain = dsTrain.union(dsTopAndBottom).persist(StorageLevel.MEMORY_AND_DISK_SER)
       }
-      dsTrain = trainTemp.persist(StorageLevel.MEMORY_ONLY_SER)
-      trainTemp.unpersist()
-      parseScoreRDD.unpersist()
-      
+
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
       }
 
-      //Step 7 Training
+      //Step 9 Training
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain.persist(StorageLevel.MEMORY_ONLY_SER), calibrationSizeDynamic, stratified)
+        lpDsTrain.persist(StorageLevel.MEMORY_ONLY), calibrationSizeDynamic, stratified)
 
       //Train ICP
-      val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_ONLY_SER), numIterations)
+      val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_ONLY), numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
+
+      parseScoreRDD.unpersist()
       lpDsTrain.unpersist()
       properTraining.unpersist()
 
@@ -207,16 +211,9 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
 
-      //Step 9 Subtracting the already docked molecules from main dataset
-      // and {0} mols             
-      if (dsRemaining == null) {
-        dsTemp = ds.subtract(dsInit.union(dsZeroPredicted))
-      } else {
-        dsTemp = dsRemaining.subtract(dsInit.union(dsZeroPredicted)).persist(StorageLevel.MEMORY_AND_DISK_SER)
-        dsRemaining.unpersist()
-      }
-      dsRemaining = dsTemp.persist(StorageLevel.MEMORY_AND_DISK_SER)
-      dsTemp.unpersist()
+      //Step 10 Subtracting {0} mols from main dataset
+      ds = ds.subtract(dsZeroPredicted).persist(StorageLevel.MEMORY_AND_DISK_SER)
+
       //Computing efficiency for stopping loop
       val totalCount = sc.accumulator(0.0)
       val singletonCount = sc.accumulator(0.0)
@@ -241,10 +238,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       if (eff >= 2) {
         dsOnePredicted = predictions
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
-          .map { case (sdfmol, prediction) => sdfmol }.persist(StorageLevel.MEMORY_ONLY_SER)
+          .map { case (sdfmol, prediction) => sdfmol }.persist(StorageLevel.MEMORY_AND_DISK_SER)
       }
-
-      dsDock.unpersist()
     } while (effCounter < 2 && !singleCycle)
 
     dsOnePredicted = dsOnePredicted.subtract(poses)
