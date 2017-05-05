@@ -139,7 +139,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     var trainTemp: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).cache()
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_ONLY_SER)
     var dsTemp: RDD[String] = null
     var eff: Double = 0.0
     var counter: Int = 1
@@ -158,19 +158,19 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       sdfmol =>
         ConformersWithSignsAndScorePipeline.getFeatureVector(sdfmol)
           .map { case (vector) => (sdfmol, vector) }
-    }.cache()
+    }.persist(StorageLevel.MEMORY_ONLY_SER)
 
     do {
       //Step 1
       //Get a sample of the data
       if (dsInit == null)
-        dsInit = ds.sample(false, dsInitSize / ds.count().toDouble).cache()
+        dsInit = ds.sample(false, dsInitSize / ds.count().toDouble).persist(StorageLevel.MEMORY_ONLY_SER)
       else
-        dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble).cache()
+        dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble).persist(StorageLevel.MEMORY_ONLY_SER)
 
       //Step 2
       //Subtract the sampled molecules from main dataset
-      dsTemp = ds.subtract(dsInit).cache()
+      dsTemp = ds.subtract(dsInit).persist(StorageLevel.MEMORY_ONLY_SER)
       ds.unpersist()
 
       //Step 3
@@ -184,9 +184,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 4
       //Keeping processed poses
       if (poses == null) {
-        posesTemp = dsDock.cache()
+        posesTemp = dsDock
       } else {
-        posesTemp = poses.union(dsDock).cache()
+        posesTemp = poses.union(dsDock).persist(StorageLevel.MEMORY_ONLY_SER)
         poses.unpersist()
       }
       poses = posesTemp
@@ -219,10 +219,10 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 8 Training
       calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain.cache, calibrationSizeDynamic, stratified)
+        lpDsTrain.persist(StorageLevel.MEMORY_ONLY_SER), calibrationSizeDynamic, stratified)
 
       //Train ICP
-      val svm = new SVM(properTraining.cache, numIterations)
+      val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_ONLY_SER), numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
 
@@ -241,7 +241,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
 
-      ds = dsTemp.subtract(dsZeroPredicted).cache()
+      ds = dsTemp.subtract(dsZeroPredicted).persist(StorageLevel.MEMORY_ONLY_SER)
       dsTemp.unpersist()
 
       //Computing efficiency for stopping
