@@ -164,7 +164,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
 
       //Step 6 and 7 Computing dsTopAndBottom
-      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).persist(StorageLevel.MEMORY_ONLY)
+      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).persist(StorageLevel.DISK_ONLY)
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
       val dsTopAndBottom = dsDock.map {
@@ -177,7 +177,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       if (dsTrain == null) {
         dsTrain = dsTopAndBottom
       } else {
-        dsTrain = dsTrain.union(dsTopAndBottom).persist(StorageLevel.MEMORY_AND_DISK_SER)
+        dsTrain = dsTrain.union(dsTopAndBottom).persist(StorageLevel.DISK_ONLY)
       }
 
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
@@ -189,10 +189,10 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Train icps
       calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain.persist(StorageLevel.MEMORY_ONLY), calibrationSizeDynamic, stratified)
+        lpDsTrain, calibrationSizeDynamic, stratified)
 
       //Train ICP
-      val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_ONLY), numIterations)
+      val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_AND_DISK_SER), numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
 
@@ -212,7 +212,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         .map { case (sdfmol, prediction) => sdfmol }
 
       //Step 10 Subtracting {0} mols from main dataset
-      ds = ds.subtract(dsZeroPredicted).persist(StorageLevel.MEMORY_AND_DISK_SER)
+      ds = ds.subtract(dsZeroPredicted).persist(StorageLevel.DISK_ONLY)
 
       //Computing efficiency for stopping loop
       val totalCount = sc.accumulator(0.0)
@@ -238,7 +238,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       if (eff >= 2) {
         dsOnePredicted = predictions
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
-          .map { case (sdfmol, prediction) => sdfmol }.persist(StorageLevel.MEMORY_AND_DISK_SER)
+          .map { case (sdfmol, prediction) => sdfmol }.persist(StorageLevel.DISK_ONLY)
       }
     } while (effCounter < 2 && !singleCycle)
 
