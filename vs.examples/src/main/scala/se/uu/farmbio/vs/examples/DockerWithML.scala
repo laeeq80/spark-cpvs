@@ -131,8 +131,7 @@ object DockerWithML extends Logging {
     
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-    sc.getConf.getAll.foreach(println)
-    logInfo("JOB_INFO: Number of partitions are " + poses.getMolecules.getNumPartitions)
+   
     val newPoses = poses.generateSignatures()
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
