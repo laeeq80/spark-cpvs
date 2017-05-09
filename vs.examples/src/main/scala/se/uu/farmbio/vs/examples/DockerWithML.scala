@@ -131,8 +131,7 @@ object DockerWithML extends Logging {
     
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-   
-    val newPoses = poses.generateSignatures()
+      .generateSignatures()
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
@@ -145,8 +144,8 @@ object DockerWithML extends Logging {
         params.singleCycle,
         params.stratified,
         params.confidence)
-    val cachedPoses = newPoses.getMolecules.cache()
-    val res = newPoses.getTopPoses(params.topN)
+    val cachedPoses = poses.getMolecules.cache()
+    val res = poses.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 
