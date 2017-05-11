@@ -77,6 +77,12 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
       .map(_._2.toString) //convert to string RDD
     new ConformerPipeline(rdd)
   }
+  
+  def readConformerWithSignsFile(path: String): SBVSPipeline with ConformersWithSignsTransforms = {
+    val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
+      .map(_._2.toString) //convert to string RDD
+    new ConformersWithSignsPipeline(rdd)
+  }
 
   def readPoseFile(path: String, method: Int): SBVSPipeline with PoseTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)

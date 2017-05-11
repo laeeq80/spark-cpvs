@@ -28,6 +28,7 @@ object DockerWithML extends Logging {
     oeLicensePath: String = null,
     firstFile: String = null,
     secondFile: String = null,
+    signatureFile: String = null,
     dsInitSize: Int = 100,
     dsIncreSize: Int = 50,
     calibrationPercent: Double = 0.3,
@@ -70,6 +71,10 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input file that you want to check for accuracy")
         .action((x, c) => c.copy(secondFile = x))
+      arg[String]("<signature-file>")
+        .required()
+        .text("path to write and read intermediate signatures")
+        .action((x, c) => c.copy(signatureFile = x))
       opt[Int]("dsInitSize")
         .text("initial Data Size to be docked (default: 100)")
         .action((x, c) => c.copy(dsInitSize = x))
@@ -125,13 +130,28 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    conf.registerKryoClasses(Array(classOf[ConformersWithSignsPipeline]))
+    conf.set("spark.kryo.registrationRequired", "true")
+    conf.registerKryoClasses(Array(
+        classOf[ConformersWithSignsPipeline], 
+        classOf[scala.collection.immutable.Map$EmptyMap$],
+        classOf[org.apache.spark.mllib.regression.LabeledPoint],
+        classOf[Array[org.apache.spark.mllib.regression.LabeledPoint]],
+        classOf[org.apache.spark.mllib.linalg.SparseVector],
+        classOf[Array[Int]],
+        classOf[Array[Double]]
+        ))
+   
     val sc = new SparkContext(conf)
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
-    
+
     val poses = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures()
+      .getMolecules
+      .saveAsTextFile(params.signatureFile)
+
+    val newPoses = new SBVSPipeline(sc)
+      .readConformerWithSignsFile(params.signatureFile)
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
@@ -144,8 +164,8 @@ object DockerWithML extends Logging {
         params.singleCycle,
         params.stratified,
         params.confidence)
-    val cachedPoses = poses.getMolecules.cache()
-    val res = poses.getTopPoses(params.topN)
+    val cachedPoses = newPoses.getMolecules.cache()
+    val res = newPoses.getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 

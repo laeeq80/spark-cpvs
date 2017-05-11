@@ -112,7 +112,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.DISK_ONLY)
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
     var eff: Double = 0.0
     var counter: Int = 1
     var effCounter: Int = 0
@@ -231,11 +231,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         effCounter = 0
       }
       counter = counter + 1
-      if (effCounter >= 2) {
+      //if (effCounter >= 2) {
         dsOnePredicted = predictions
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
           .map { case (sdfmol, prediction) => sdfmol }.persist(StorageLevel.DISK_ONLY)
-      }
+      //}
       dsInit.unpersist()
     } while (effCounter < 2 && !singleCycle)
 
