@@ -129,9 +129,33 @@ object DockerWithML extends Logging {
     if (params.master != null) {
       conf.setMaster(params.master)
     }
-    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    conf.set("spark.kryo.registrationRequired", "true")
-    conf.registerKryoClasses(Array(
+    
+    val sc = new SparkContext(conf)
+    sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
+
+    val poses = new SBVSPipeline(sc)
+      .readConformerFile(params.conformersFile)
+      .generateSignatures()
+      .getMolecules
+      .saveAsTextFile(params.signatureFile)
+    
+    sc.stop()
+    
+    val conf2 = new SparkConf()
+      .setAppName("DockerWithML2")
+    if (params.oeLicensePath != null) {
+      conf2.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
+    }
+    if (params.master != null) {
+      conf2.setMaster(params.master)
+    }
+    
+    val sc2 = new SparkContext(conf2)
+    sc2.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
+    
+    conf2.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf2.set("spark.kryo.registrationRequired", "true")
+    conf2.registerKryoClasses(Array(
       classOf[ConformersWithSignsPipeline],
       classOf[scala.collection.immutable.Map$EmptyMap$],
       classOf[org.apache.spark.mllib.regression.LabeledPoint],
@@ -141,18 +165,9 @@ object DockerWithML extends Logging {
       classOf[Array[Int]],
       classOf[Array[Double]],
       classOf[Array[String]],
-      classOf[scala.collection.mutable.WrappedArray$ofRef]))
+      classOf[scala.collection.mutable.WrappedArray$ofRef]))  
 
-    val sc = new SparkContext(conf)
-    sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
-
-    val poses = new SBVSPipeline(sc)
-      .readConformerFile(params.conformersFile)
-      .generateSignatures()
-      .getMolecules
-      .saveAsTextFile(params.signatureFile)
-
-    val newPoses = new SBVSPipeline(sc)
+    val newPoses = new SBVSPipeline(sc2)
       .readConformerWithSignsFile(params.signatureFile)
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
@@ -169,14 +184,14 @@ object DockerWithML extends Logging {
     val cachedPoses = newPoses.getMolecules.cache()
     val res = newPoses.getTopPoses(params.topN)
 
-    sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
+    sc2.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 
-    val mols1 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
+    val mols1 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
 
     val Array1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
 
-    val mols2 = sc.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 2)
+    val mols2 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
 
     val Array2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
@@ -190,7 +205,7 @@ object DockerWithML extends Logging {
       " and good bins ranges from " + params.goodIn + "-10")
     logInfo("JOB_INFO: Number of molecules matched are " + counter)
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
-    sc.stop()
+    sc2.stop()
 
   }
 
