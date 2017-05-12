@@ -122,7 +122,7 @@ object DockerWithML extends Logging {
 
     //Init Spark
     val conf = new SparkConf()
-      .setAppName("DockerWithML")
+      .setAppName("DockerWithML1")
     if (params.oeLicensePath != null) {
       conf.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
     }
@@ -138,7 +138,7 @@ object DockerWithML extends Logging {
       .generateSignatures()
       .getMolecules
       .saveAsTextFile(params.signatureFile)
-    
+  
     sc.stop()
     
     val conf2 = new SparkConf()

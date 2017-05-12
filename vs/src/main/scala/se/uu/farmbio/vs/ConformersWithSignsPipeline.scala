@@ -236,7 +236,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
           .map { case (sdfmol, prediction) => sdfmol }.persist(StorageLevel.DISK_ONLY)
       }
-      dsInit.unpersist()
+     
     } while (effCounter < 2 && !singleCycle)
 
     dsOnePredicted = dsOnePredicted.subtract(poses)
