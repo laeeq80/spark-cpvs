@@ -156,7 +156,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       if (poses == null) {
         poses = dsDock
       } else {
-        poses = poses.union(dsDock).persist(StorageLevel.DISK_ONLY)
+        poses = poses.union(dsDock)
       }
 
       //Step 6 and 7 Computing dsTopAndBottom
@@ -235,8 +235,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         dsOnePredicted = predictions
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
           .map { case (sdfmol, prediction) => sdfmol }.persist(StorageLevel.DISK_ONLY)
+        poses.persist(StorageLevel.DISK_ONLY)
       }
-     
     } while (effCounter < 2 && !singleCycle)
 
     dsOnePredicted = dsOnePredicted.subtract(poses)
@@ -249,7 +249,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       poses = dsDockOne
     else
       poses = poses.union(dsDockOne)
-    logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
+
     new PosePipeline(poses, method)
   }
 

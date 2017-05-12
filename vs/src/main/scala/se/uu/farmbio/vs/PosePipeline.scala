@@ -6,6 +6,7 @@ import org.apache.spark.Logging
 import org.apache.spark.rdd.RDD
 
 import openeye.oedocking.OEDockMethod
+import org.apache.spark.storage.StorageLevel
 
 trait PoseTransforms {
 
@@ -103,7 +104,7 @@ private[vs] class PosePipeline(override val rdd: RDD[String], val scoreMethod: I
   val methodBroadcast = rdd.sparkContext.broadcast(scoreMethod)
 
   override def getTopPoses(topN: Int) = {
-    val cachedRDD = rdd.cache()
+    val cachedRDD = rdd.persist(StorageLevel.MEMORY_AND_DISK_SER)
     val methodBroadcastLocal = methodBroadcast
     val method = methodBroadcastLocal.value
     //Parsing id and Score in parallel and collecting data to driver

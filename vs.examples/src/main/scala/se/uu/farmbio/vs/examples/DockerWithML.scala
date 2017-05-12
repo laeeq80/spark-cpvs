@@ -181,7 +181,7 @@ object DockerWithML extends Logging {
         params.singleCycle,
         params.stratified,
         params.confidence)
-    val cachedPoses = newPoses.getMolecules.cache()
+    //val cachedPoses = newPoses.getMolecules.cache()
     val res = newPoses.getTopPoses(params.topN)
 
     sc2.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
