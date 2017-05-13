@@ -249,7 +249,6 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       poses = dsDockOne
     else
       poses = poses.union(dsDockOne)
-
     new PosePipeline(poses, method)
   }
 
