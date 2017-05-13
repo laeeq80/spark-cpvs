@@ -29,7 +29,6 @@ object DockerWithML extends Logging {
     firstFile: String = null,
     secondFile: String = null,
     signatureFile: String = null,
-    posesFile: String = null,
     dsInitSize: Int = 100,
     dsIncreSize: Int = 50,
     calibrationPercent: Double = 0.3,
@@ -76,10 +75,6 @@ object DockerWithML extends Logging {
         .required()
         .text("path to write and read intermediate signatures")
         .action((x, c) => c.copy(signatureFile = x))
-      arg[String]("<poses-file>")
-        .required()
-        .text("path to write and read intermediate poses")
-        .action((x, c) => c.copy(posesFile = x))
       opt[Int]("dsInitSize")
         .text("initial Data Size to be docked (default: 100)")
         .action((x, c) => c.copy(dsInitSize = x))
