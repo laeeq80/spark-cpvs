@@ -186,7 +186,7 @@ object DockerWithML extends Logging {
     val sc2 = new SparkContext(conf2)
     sc2.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
 
-    val Poses = new SBVSPipeline(sc2)
+    val res = new SBVSPipeline(sc2)
       .readConformerWithSignsFile(params.signatureFile)
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
@@ -200,49 +200,16 @@ object DockerWithML extends Logging {
         params.singleCycle,
         params.stratified,
         params.confidence)
-      .getMolecules
-      .saveAsTextFile(params.posesFile)
-
-    sc2.stop()
-
-    val conf3 = new SparkConf()
-      .setAppName("DockerWithML3")
-    if (params.oeLicensePath != null) {
-      conf3.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
-    }
-    if (params.master != null) {
-      conf3.setMaster(params.master)
-    }
-
-    conf3.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    conf3.set("spark.kryo.registrationRequired", "true")
-    conf3.registerKryoClasses(Array(
-      classOf[ConformersWithSignsPipeline],
-      classOf[scala.collection.immutable.Map$EmptyMap$],
-      classOf[org.apache.spark.mllib.regression.LabeledPoint],
-      classOf[Array[org.apache.spark.mllib.regression.LabeledPoint]],
-      classOf[org.apache.spark.mllib.linalg.SparseVector],
-      classOf[org.apache.spark.mllib.linalg.DenseVector],
-      classOf[Array[Int]],
-      classOf[Array[Double]],
-      classOf[Array[String]],
-      classOf[scala.collection.mutable.WrappedArray$ofRef]))
-
-    val sc3 = new SparkContext(conf3)
-    sc3.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
-
-    val res = new SBVSPipeline(sc3)
-      .readPoseFile(params.posesFile, OEDockMethod.Chemgauss4)
       .getTopPoses(params.topN)
 
-    sc3.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
+    sc2.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 
-    val mols1 = sc3.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
+    val mols1 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
 
     val Array1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
 
-    val mols2 = sc3.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 2)
+    val mols2 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
 
     val Array2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
@@ -256,7 +223,7 @@ object DockerWithML extends Logging {
       " and good bins ranges from " + params.goodIn + "-10")
     logInfo("JOB_INFO: Number of molecules matched are " + counter)
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
-    sc3.stop()
+    sc2.stop()
 
   }
 
