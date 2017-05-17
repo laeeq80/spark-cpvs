@@ -130,6 +130,20 @@ object DockerWithML extends Logging {
       conf.setMaster(params.master)
     }
 
+    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf.set("spark.kryo.registrationRequired", "true")
+    conf.registerKryoClasses(Array(
+      classOf[ConformersWithSignsPipeline],
+      classOf[scala.collection.immutable.Map$EmptyMap$],
+      classOf[org.apache.spark.mllib.regression.LabeledPoint],
+      classOf[Array[org.apache.spark.mllib.regression.LabeledPoint]],
+      classOf[org.apache.spark.mllib.linalg.SparseVector],
+      classOf[org.apache.spark.mllib.linalg.DenseVector],
+      classOf[Array[Int]],
+      classOf[Array[Double]],
+      classOf[Array[String]],
+      classOf[scala.collection.mutable.WrappedArray$ofRef]))
+
     val sc = new SparkContext(conf)
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
 
@@ -150,11 +164,29 @@ object DockerWithML extends Logging {
       conf2.setMaster(params.master)
     }
 
+    conf2.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf2.set("spark.kryo.registrationRequired", "true")
+    conf2.registerKryoClasses(Array(
+      classOf[ConformersWithSignsPipeline],
+      classOf[scala.collection.immutable.Map$EmptyMap$],
+      classOf[org.apache.spark.mllib.regression.LabeledPoint],
+      classOf[Array[org.apache.spark.mllib.regression.LabeledPoint]],
+      classOf[org.apache.spark.mllib.linalg.SparseVector],
+      classOf[org.apache.spark.mllib.linalg.DenseVector],
+      classOf[Array[Int]],
+      classOf[Array[Double]],
+      classOf[Array[String]],
+      classOf[scala.collection.mutable.WrappedArray$ofRef]))
+
     val sc2 = new SparkContext(conf2)
     sc2.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
 
-    val res = new SBVSPipeline(sc2)
+    val conformerWithSigns = new SBVSPipeline(sc2)
       .readConformerWithSignsFile(params.signatureFile)
+      .getMolecules
+      
+      val res = new SBVSPipeline(sc2)
+      .readConformersWithSignsRDDs(Seq(conformerWithSigns))
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,

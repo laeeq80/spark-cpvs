@@ -20,7 +20,8 @@ object Take extends Logging {
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
-    sdfPath: String = null)
+    sdfPath: String = null,
+    takeN: Int = 0)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -37,6 +38,10 @@ object Take extends Logging {
         .required()
         .text("path to subset SDF file")
         .action((x, c) => c.copy(sdfPath = x))
+      opt[Int]("takeN")
+        .required()
+        .text("number of mols you want to take")
+        .action((x, c) => c.copy(takeN = x))  
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -62,7 +67,7 @@ object Take extends Logging {
       .readConformerFile(params.conformersFile)
       .getMolecules
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-      .take(10000)
+      .take(params.takeN)
 
     val pw = new PrintWriter(params.sdfPath)
     mols.foreach(pw.println(_))

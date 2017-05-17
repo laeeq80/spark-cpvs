@@ -65,6 +65,10 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
   def readPoseRDDs(poses: Seq[RDD[String]], method: Int): SBVSPipeline with PoseTransforms = {
     new PosePipeline(sc.union(poses), method)
   }
+  
+  def readConformersWithSignsRDDs(conformersWithSigns: Seq[RDD[String]]): SBVSPipeline with ConformersWithSignsTransforms = {
+    new ConformersWithSignsPipeline(sc.union(conformersWithSigns))
+  }
 
   def readSmilesFile(path: String): SBVSPipeline with SmilesTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SmilesInputFormat](path, defaultParallelism)
