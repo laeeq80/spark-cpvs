@@ -9,6 +9,7 @@ import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
 import java.io.StringWriter
 import org.apache.spark.storage.StorageLevel
+import java.io.PrintWriter
 
 trait ConformersWithSignsTransforms {
   def dockWithML(
@@ -133,21 +134,29 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 1
       //Get a sample of the data
       logInfo("JOB_INFO: Number of mols in ds are " + ds.count)
-      
+
       if (dsInit == null)
         dsInit = ds.sample(false, dsInitSize / ds.count.toDouble)
       else
         dsInit = ds.sample(false, dsIncreSize / ds.count.toDouble)
-        
+
       logInfo("JOB_INFO: Number of mols in dsInit are " + dsInit.count)
       logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
+
+      val pw = new PrintWriter("data/test")
+      dsInit.foreach(pw.println(_))
+      pw.close
+      //val combinedsInit = dsInit.mapPartitions(SBVSPipeline.wrapMultiMolecules)
+      val newDsInit = dsInit.map { x => x.mkString("") }
+
+      logInfo("JOB_INFO: Number of mols in concatdsInit are " + newDsInit.count)
 
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
-        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, sc.union(Seq(dsInit)))
+        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, newDsInit)
         //Removing empty molecules caused by oechem optimization problem
-        .persist(StorageLevel.MEMORY_AND_DISK_SER)
+        .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
 
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 
