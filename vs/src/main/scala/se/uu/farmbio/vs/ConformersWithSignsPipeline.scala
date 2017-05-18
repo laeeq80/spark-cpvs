@@ -112,7 +112,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var ds: RDD[String] = rdd
+    var ds: RDD[String] = rdd.persist(StorageLevel.MEMORY_AND_DISK_SER)
     var eff: Double = 0.0
     var counter: Int = 1
     var effCounter: Int = 0
@@ -143,7 +143,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
         //Removing empty molecules caused by oechem optimization problem
-        .flatMap(SBVSPipeline.splitSDFmolecules)
+        .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
 
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 
@@ -160,7 +160,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
 
       //Step 6 and 7 Computing dsTopAndBottom
-      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method))
+      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).persist(StorageLevel.MEMORY_ONLY)
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
       val dsTopAndBottom = dsDock.map {
@@ -208,7 +208,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         .map { case (sdfmol, prediction) => sdfmol }
 
       //Step 10 Subtracting {0} mols from main dataset
-      ds = ds.subtract(dsZeroPredicted)
+      ds = ds.subtract(dsZeroPredicted).persist(StorageLevel.MEMORY_AND_DISK_SER)
 
       //Computing efficiency for stopping loop
       val totalCount = sc.accumulator(0.0)
