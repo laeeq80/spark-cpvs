@@ -53,6 +53,8 @@ object SignatureExample extends Logging {
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .getMolecules
+      .flatMap(SBVSPipeline.splitSDFmolecules)
+      .coalesce(8, false)
       .saveAsTextFile(params.signatureOutputFile)
 
     sc.stop()

@@ -151,6 +151,8 @@ object DockerWithML extends Logging {
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .getMolecules
+      .flatMap(SBVSPipeline.splitSDFmolecules)
+      .coalesce(8, false)
       .saveAsTextFile(params.signatureFile)
 
     sc.stop()
