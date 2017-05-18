@@ -112,7 +112,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var ds: RDD[String] = rdd.persist(StorageLevel.MEMORY_AND_DISK_SER)
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
     var eff: Double = 0.0
     var counter: Int = 1
     var effCounter: Int = 0
@@ -132,18 +132,22 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     do {
       //Step 1
       //Get a sample of the data
+      logInfo("JOB_INFO: Number of mols in ds are " + ds.count)
+      
       if (dsInit == null)
-        dsInit = ds.sample(false, dsInitSize / ds.count().toDouble)
+        dsInit = ds.sample(false, dsInitSize / ds.count.toDouble)
       else
-        dsInit = ds.sample(false, dsIncreSize / ds.count().toDouble)
+        dsInit = ds.sample(false, dsIncreSize / ds.count.toDouble)
+        
+      logInfo("JOB_INFO: Number of mols in dsInit are " + dsInit.count)
       logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
 
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
-        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInit)
+        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, sc.union(Seq(dsInit)))
         //Removing empty molecules caused by oechem optimization problem
-        .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
+        .persist(StorageLevel.MEMORY_AND_DISK_SER)
 
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 

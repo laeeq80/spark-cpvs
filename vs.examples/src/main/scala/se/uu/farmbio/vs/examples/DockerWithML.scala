@@ -151,8 +151,6 @@ object DockerWithML extends Logging {
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .getMolecules
-      .flatMap(SBVSPipeline.splitSDFmolecules)
-      .coalesce(8, false)
       .saveAsTextFile(params.signatureFile)
 
     sc.stop()
@@ -185,6 +183,10 @@ object DockerWithML extends Logging {
 
     val conformerWithSigns = new SBVSPipeline(sc2)
       .readConformerWithSignsFile(params.signatureFile)
+      .getMolecules
+
+    val res = new SBVSPipeline(sc2)
+      .readConformersWithSignsRDDs(Seq(conformerWithSigns))
       .dockWithML(params.receptorFile,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
@@ -199,7 +201,7 @@ object DockerWithML extends Logging {
         params.confidence)
       .getTopPoses(params.topN)
 
-    sc2.parallelize(conformerWithSigns, 1).saveAsTextFile(params.topPosesPath)
+    sc2.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
 
     val mols1 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))

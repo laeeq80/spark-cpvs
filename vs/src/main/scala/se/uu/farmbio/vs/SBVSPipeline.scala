@@ -47,7 +47,7 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
   }
 
   protected val sc = rdd.context
-  protected val defaultParallelism = sc.getConf.get("spark.default.parallelism", "32").toInt
+  protected val defaultParallelism = sc.getConf.get("spark.default.parallelism", "2").toInt
   protected val oeErrorLevel =
     sc.getConf.get("oechem.error.level", OEErrorLevel.Error.toString).toInt
   logDebug(s"OEChem error level is: $oeErrorLevel")
