@@ -152,7 +152,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInitToDock)
         //Removing empty molecules caused by oechem optimization problem
-        .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
+        .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.DISK_ONLY)
 
       logInfo("JOB_INFO: Number of mols in dsDock are " + dsDock.count)  
       
@@ -185,7 +185,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       if (dsTrain == null) {
         dsTrain = dsTopAndBottom
       } else {
-        dsTrain = dsTrain.union(dsTopAndBottom).persist(StorageLevel.MEMORY_AND_DISK_SER)
+        dsTrain = dsTrain.union(dsTopAndBottom).persist(StorageLevel.DISK_ONLY)
       }
 
       //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
@@ -251,9 +251,12 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     } while (effCounter < 2 && !singleCycle)
 
     dsOnePredicted = dsOnePredicted.subtract(poses)
-    val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, false, sc, dsOnePredicted)
+    
+    val dsOnePredictedToDock = dsOnePredicted.mapPartitions(x=>Seq(x.mkString("\n")).iterator)
+    
+    val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, false, sc, dsOnePredictedToDock)
       //Removing empty molecules caused by oechem optimization problem
-      .flatMap(SBVSPipeline.splitSDFmolecules).filter(_.nonEmpty)
+      .flatMap(SBVSPipeline.splitSDFmolecules)
 
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
