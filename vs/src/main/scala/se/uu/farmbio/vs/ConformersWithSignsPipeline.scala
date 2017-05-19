@@ -142,24 +142,23 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       logInfo("JOB_INFO: Number of mols in dsInit are " + dsInit.count)
       logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
-
-      val pw = new PrintWriter("data/test")
-      dsInit.foreach(pw.println(_))
-      pw.close
-      //val combinedsInit = dsInit.mapPartitions(SBVSPipeline.wrapMultiMolecules)
-      val newDsInit = dsInit.map { x => x.mkString("") }
-
-      logInfo("JOB_INFO: Number of mols in concatdsInit are " + newDsInit.count)
+      
+      val dsInitToDock = dsInit.mapPartitions(x=>Seq(x.mkString("\n")).iterator)
+   
+      logInfo("JOB_INFO: Number of mols in dsInitToDock are " + dsInitToDock.count)
 
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
-        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, newDsInit)
+        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInitToDock)
         //Removing empty molecules caused by oechem optimization problem
         .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
 
+      logInfo("JOB_INFO: Number of mols in dsDock are " + dsDock.count)  
+      
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
-
+      
+      
       //Step 4
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
