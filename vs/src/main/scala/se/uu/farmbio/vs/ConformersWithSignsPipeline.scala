@@ -133,32 +133,24 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     do {
       //Step 1
       //Get a sample of the data
-      logInfo("JOB_INFO: Number of mols in ds are " + ds.count)
-
       if (dsInit == null)
         dsInit = ds.sample(false, dsInitSize / ds.count.toDouble)
       else
         dsInit = ds.sample(false, dsIncreSize / ds.count.toDouble)
 
-      logInfo("JOB_INFO: Number of mols in dsInit are " + dsInit.count)
-      logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
+     logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
       
       val dsInitToDock = dsInit.mapPartitions(x=>Seq(x.mkString("\n")).iterator)
    
-      logInfo("JOB_INFO: Number of mols in dsInitToDock are " + dsInitToDock.count)
-
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInitToDock)
         //Removing empty molecules caused by oechem optimization problem
         .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.DISK_ONLY)
-
-      logInfo("JOB_INFO: Number of mols in dsDock are " + dsDock.count)  
-      
+        
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
-      
-      
+            
       //Step 4
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -262,7 +254,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     if (poses == null)
       poses = dsDockOne
     else
-      poses = poses.union(dsDockOne)
+      poses = poses.union(dsDockOne)  
     new PosePipeline(poses, method)
   }
 
