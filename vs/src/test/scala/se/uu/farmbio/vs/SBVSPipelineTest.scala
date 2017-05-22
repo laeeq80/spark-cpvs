@@ -52,7 +52,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res.toSet === filteredCollapsed.toSet)
 
   }
-/*
+
   test("filter should filter a set of SMILES according to the provided custom filter") {
 
     val res = new SBVSPipeline(sc)
@@ -111,7 +111,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(resSet === filtTest)
 
   }
-
+/*
   test("dock should dock a set of conformers to a receptor and generate the poses") {
 
     val res = new SBVSPipeline(sc)
@@ -132,7 +132,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     val res = new SBVSPipeline(sc)
       .readPoseFile(getClass.getResource("unsorted_poses.sdf").getPath, OEDockMethod.Chemgauss4)
       .getTopPoses(topN)
-
+    
     val topCollapsed = TestUtils.readSDF(getClass.getResource("top_collapsed.sdf").getPath)
     assert(res.map(TestUtils.removeSDFheader) === topCollapsed.map(TestUtils.removeSDFheader))
 

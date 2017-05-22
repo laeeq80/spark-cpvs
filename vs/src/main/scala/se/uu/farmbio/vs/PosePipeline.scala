@@ -130,8 +130,14 @@ private[vs] class PosePipeline(override val rdd: RDD[String], val scoreMethod: I
         .map(topHit => topHit == idAndScore)
         .reduce(_ || _)
     }
+        
+    //filtering out duplicate top mols by id
+    val duplicateRemovedTopPoses = topPoses.map { mol => 
+      (PosePipeline.parseId(mol),mol)
+       }.reduceByKey((id, mol) => id).map{ case (id, mol) => mol }
+       
     //return statement  
-    topPoses.collect
+    duplicateRemovedTopPoses.collect
       .sortBy {
         mol => -PosePipeline.parseScore(scoreMethod)(mol)
       }

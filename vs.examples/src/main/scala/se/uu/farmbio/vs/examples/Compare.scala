@@ -66,16 +66,16 @@ object Compare extends Logging {
       
     val scores1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }
     
-    val Array1 = scores1.take(30)
+    val Array1 = scores1.collect()
     
     val mols2 = new SBVSPipeline(sc)
       .readPoseFile(params.secondFile, OEDockMethod.Chemgauss4)
       .getMolecules
       .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
-      
+   
     val scores2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }
     
-    val Array2 = scores2.take(30)
+    val Array2 = scores2.collect()
     
     var counter : Double = 0.0
     for (i <- 0 to Array1.length - 1)
