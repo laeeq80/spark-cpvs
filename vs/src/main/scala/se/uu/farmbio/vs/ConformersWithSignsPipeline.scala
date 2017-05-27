@@ -113,7 +113,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     var poses: RDD[String] = null
     var dsTrain: RDD[String] = null
     var dsOnePredicted: RDD[(String)] = null
-    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.MEMORY_AND_DISK_SER)
+    var ds: RDD[String] = rdd.flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.DISK_ONLY)
     var eff: Double = 0.0
     var counter: Int = 1
     var effCounter: Int = 0
@@ -212,7 +212,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         .map { case (sdfmol, prediction) => sdfmol }
 
       //Step 10 Subtracting {0} mols from main dataset
-      ds = ds.subtract(dsZeroPredicted).persist(StorageLevel.MEMORY_AND_DISK_SER)
+      ds = ds.subtract(dsZeroPredicted).persist(StorageLevel.DISK_ONLY)
 
       //Computing efficiency for stopping loop
       val totalCount = sc.accumulator(0.0)
