@@ -119,7 +119,7 @@ object DockerWithML extends Logging {
   }
 
   def run(params: Arglist) {
-
+    //Little Testing
     //Init Spark
     val conf = new SparkConf()
       .setAppName("DockerWithML1")
