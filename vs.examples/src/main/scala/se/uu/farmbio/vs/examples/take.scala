@@ -3,21 +3,30 @@ package se.uu.farmbio.vs.examples
 import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-
+import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
+import java.io.PrintWriter
 
-object SignatureExample extends Logging {
+import openeye.oedocking.OEDockMethod
+import openeye.oedocking.OESearchResolution
+
+/**
+ * @author laeeq
+ */
+
+object Take extends Logging {
 
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
-    signatureOutputFile: String = null)
+    sdfPath: String = null,
+    takeN: Int = 0)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
-    val parser = new OptionParser[Arglist]("SignatureExample") {
-      head("SignatureExample: a pipeline to generate molecular signatures from conformers.")
+    val parser = new OptionParser[Arglist]("Take") {
+      head("Counts number of molecules in conformer file")
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
@@ -25,10 +34,14 @@ object SignatureExample extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
-      arg[String]("<signature-output-file>")
+      arg[String]("<sdf-Path>")
         .required()
-        .text("path to output signature file")
-        .action((x, c) => c.copy(signatureOutputFile = x))
+        .text("path to subset SDF file")
+        .action((x, c) => c.copy(sdfPath = x))
+      opt[Int]("takeN")
+        .required()
+        .text("number of mols you want to take")
+        .action((x, c) => c.copy(takeN = x))  
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -43,19 +56,22 @@ object SignatureExample extends Logging {
 
     //Init Spark
     val conf = new SparkConf()
-      .setAppName("SignatureExample")
+      .setAppName("Take")
 
     if (params.master != null) {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-    val signatures = new SBVSPipeline(sc)
+
+    val mols = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-      .generateSignatures()
       .getMolecules
-      .flatMap(SBVSPipeline.splitSDFmolecules)
-      .coalesce(8, false)
-      .saveAsTextFile(params.signatureOutputFile)
+      .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
+      .take(params.takeN)
+
+    val pw = new PrintWriter(params.sdfPath)
+    mols.foreach(pw.println(_))
+    pw.close
 
     sc.stop()
 

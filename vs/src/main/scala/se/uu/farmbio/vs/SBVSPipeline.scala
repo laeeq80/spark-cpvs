@@ -17,6 +17,8 @@ import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
 
 import openeye.oechem.OEErrorLevel
+import java.util._
+import scala.collection.JavaConversions._
 
 private[vs] object SBVSPipeline {
 
@@ -66,6 +68,10 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
     new PosePipeline(sc.union(poses), method)
   }
 
+  def readConformersWithSignsRDDs(conformersWithSigns: Seq[RDD[String]]): SBVSPipeline with ConformersWithSignsTransforms = {
+    new ConformersWithSignsPipeline(sc.union(conformersWithSigns))
+  }
+
   def readSmilesFile(path: String): SBVSPipeline with SmilesTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SmilesInputFormat](path, defaultParallelism)
       .map(_._2.toString) //convert to string RDD
@@ -76,6 +82,12 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
     val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
       .map(_._2.toString) //convert to string RDD
     new ConformerPipeline(rdd)
+  }
+
+  def readConformerWithSignsFile(path: String): SBVSPipeline with ConformersWithSignsTransforms = {
+    val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
+      .map(_._2.toString) //convert to string RDD
+    new ConformersWithSignsPipeline(rdd)
   }
 
   def readPoseFile(path: String, method: Int): SBVSPipeline with PoseTransforms = {

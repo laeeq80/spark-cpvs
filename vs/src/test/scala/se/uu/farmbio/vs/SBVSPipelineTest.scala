@@ -10,15 +10,8 @@ import org.scalatest.junit.JUnitRunner
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
 import openeye.oemolprop.OEFilterType
-
 import se.uu.farmbio.parsers.SDFRecordReader
 import se.uu.farmbio.parsers.SmilesRecordReader
-import se.uu.farmbio.sg.SGUtils
-
-import java.io.ByteArrayInputStream
-import java.nio.charset.Charset
-
-import scala.io.Source
 
 @RunWith(classOf[JUnitRunner])
 class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
@@ -32,7 +25,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
   sc.hadoopConfiguration.set(SDFRecordReader.SIZE_PROPERTY_NAME, "3")
   sc.hadoopConfiguration.set(SmilesRecordReader.SIZE_PROPERTY_NAME, "3")
 
-  test("sortByScore should sort a set of poses by score") {
+  ignore("sortByScore should sort a set of poses by score") {
 
     val res = new SBVSPipeline(sc)
       .readPoseFile(getClass.getResource("filtered_collapsed.sdf").getPath, OEDockMethod.Chemgauss4)
@@ -45,7 +38,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
 
   }
 
-  test("collapse should collapse poses with same id to n with highest score") {
+  ignore("collapse should collapse poses with same id to n with highest score") {
 
     val n = 2
 
@@ -118,7 +111,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(resSet === filtTest)
 
   }
-
+/*
   test("dock should dock a set of conformers to a receptor and generate the poses") {
 
     val res = new SBVSPipeline(sc)
@@ -128,11 +121,69 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
       .getMolecules
       .collect
 
-    val dockedMolecules = TestUtils.readSDF(getClass.getResource("new_pose_file.sdf").getPath)
+    val dockedMolecules = TestUtils.readSDF(getClass.getResource("unsorted_poses.sdf").getPath)
     assert(res.map(TestUtils.removeSDFheader).toSet
       === dockedMolecules.map(TestUtils.removeSDFheader).toSet)
 
+  } */
+
+  test("getTopPoses should return the topN poses") {
+    val topN = 10
+    val res = new SBVSPipeline(sc)
+      .readPoseFile(getClass.getResource("unsorted_poses.sdf").getPath, OEDockMethod.Chemgauss4)
+      .getTopPoses(topN)
+    
+    val topCollapsed = TestUtils.readSDF(getClass.getResource("top_collapsed.sdf").getPath)
+    assert(res.map(TestUtils.removeSDFheader) === topCollapsed.map(TestUtils.removeSDFheader))
+
   }
+/*
+  test("Signatures are maintained(not lost) after docking") {
+
+    val molWithSigns = new SBVSPipeline(sc)
+      .readConformerFile(getClass.getResource("filtered_conformers.sdf").getPath)
+      .generateSignatures()
+      .getMolecules
+
+    val signsBeforeDocking = molWithSigns.map {
+      case (mol) =>
+        TestUtils.parseSignature(mol)
+    }.collect()
+
+    val molWithSignsAndDockingScore = new SBVSPipeline(sc)
+      .readConformerRDDs(Seq(molWithSigns))
+      .dock(getClass.getResource("receptor.oeb").getPath,
+        OEDockMethod.Chemgauss4, OESearchResolution.Standard)
+      .getMolecules
+
+    val signsAfterDocking = molWithSignsAndDockingScore.map {
+      case (mol) =>
+        TestUtils.parseSignature(mol)
+    }.collect()
+
+    //Comparing signatures before and after docking
+    assert(signsBeforeDocking.toSet()
+      === signsAfterDocking.toSet())
+
+  }
+
+  test("dockWithML should generate the poses in expected format") {
+    val molsWithSignAndScore = new SBVSPipeline(sc)
+      .readConformerFile(getClass.getResource("100mols.sdf").getPath)
+      .generateSignatures
+      .dockWithML(getClass.getResource("receptor.oeb").getPath,
+        OEDockMethod.Chemgauss4,
+        OESearchResolution.Standard,
+        dsInitSize = 20,
+        numIterations = 20)
+      .getMolecules
+      .collect()
+
+    val format = TestUtils.getFormat(molsWithSignAndScore(0))
+
+    assert(format === ("AtomContainer", "String", "double"))
+
+  }*/
 
   override def afterAll() {
     sc.stop()

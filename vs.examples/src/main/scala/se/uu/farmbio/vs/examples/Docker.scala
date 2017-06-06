@@ -17,9 +17,10 @@ object Docker extends Logging {
     topPosesPath: String = null,
     size: String = "30",
     sampleSize: Double = 1.0,
-    collapse: Int = 0,
     posesCheckpointPath: String = null,
-    oeLicensePath: String = null)
+    oeLicensePath: String = null,
+    topN: Int = 30,
+    dockTimePerMol: Boolean = false)
 
   def main(args: Array[String]) {
 
@@ -27,9 +28,6 @@ object Docker extends Logging {
 
     val parser = new OptionParser[Params]("Docker") {
       head("Docker: an example docking pipeline.")
-      opt[String]("collapse")
-        .text("number of best scoring molecules with same id returned (default: all of them).")
-        .action((x, c) => c.copy(collapse = x.toInt))
       opt[String]("size")
         .text("it controls how many molecules are handled within a task (default: 30).")
         .action((x, c) => c.copy(size = x))
@@ -46,6 +44,12 @@ object Docker extends Logging {
       opt[String]("oeLicensePath")
         .text("path to OEChem License")
         .action((x, c) => c.copy(oeLicensePath = x))
+      opt[Int]("topN")
+        .text("number of top scoring poses to extract (default: 30).")
+        .action((x, c) => c.copy(topN = x))
+      opt[Unit]("dockTimePerMol")
+        .text("if set the docking time will be saved in the results as SDF field")
+        .action((_, c) => c.copy(dockTimePerMol = true))
       arg[String]("<conformers-file>")
         .required()
         .text("path to input SDF conformers file")
@@ -83,7 +87,6 @@ object Docker extends Logging {
     val sc = new SparkContext(conf)
     sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
 
-    val t0 = System.currentTimeMillis
     var sampleRDD = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .getMolecules
@@ -94,22 +97,14 @@ object Docker extends Logging {
 
     var poses = new SBVSPipeline(sc)
       .readConformerRDDs(Seq(sampleRDD))
-      .dock(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard)
-    if (params.collapse > 0) {
-      poses = poses.collapse(params.collapse)
-    }
+      .dock(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard, params.dockTimePerMol)
+    val cachedPoses = poses.getMolecules.cache()  
+    val res = poses.getTopPoses(params.topN)
 
-    val sortedPoses = poses.sortByScore
-    val t1 = System.currentTimeMillis
     if (params.posesCheckpointPath != null) {
-      sortedPoses.saveAsTextFile(params.posesCheckpointPath)
+      cachedPoses.saveAsTextFile(params.posesCheckpointPath)
     }
-    val res = sortedPoses
-      .getMolecules
-      .take(10) //take first 10
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
-    val elapsed = t1 - t0
-    logInfo(s"pipeline took: $elapsed millisec.")
 
   }
 

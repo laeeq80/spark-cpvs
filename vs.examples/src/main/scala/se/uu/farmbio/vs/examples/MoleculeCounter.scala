@@ -3,21 +3,28 @@ package se.uu.farmbio.vs.examples
 import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-
+import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
+import java.io.PrintWriter
 
-object SignatureExample extends Logging {
+import openeye.oedocking.OEDockMethod
+import openeye.oedocking.OESearchResolution
+
+/**
+ * @author laeeq
+ */
+
+object MoleculeCounter extends Logging {
 
   case class Arglist(
     master: String = null,
-    conformersFile: String = null,
-    signatureOutputFile: String = null)
+    conformersFile: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
-    val parser = new OptionParser[Arglist]("SignatureExample") {
-      head("SignatureExample: a pipeline to generate molecular signatures from conformers.")
+    val parser = new OptionParser[Arglist]("MoleculeCounter") {
+      head("Counts number of molecules in conformer file")
       opt[String]("master")
         .text("spark master")
         .action((x, c) => c.copy(master = x))
@@ -25,10 +32,6 @@ object SignatureExample extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
-      arg[String]("<signature-output-file>")
-        .required()
-        .text("path to output signature file")
-        .action((x, c) => c.copy(signatureOutputFile = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -43,19 +46,16 @@ object SignatureExample extends Logging {
 
     //Init Spark
     val conf = new SparkConf()
-      .setAppName("SignatureExample")
+      .setAppName("MoleculeCounter")
 
     if (params.master != null) {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-    val signatures = new SBVSPipeline(sc)
-      .readConformerFile(params.conformersFile)
-      .generateSignatures()
-      .getMolecules
-      .flatMap(SBVSPipeline.splitSDFmolecules)
-      .coalesce(8, false)
-      .saveAsTextFile(params.signatureOutputFile)
+    val molCount = sc.textFile(params.conformersFile)
+    .filter(_=="$$$$")
+    .count
+    println(s"Number of molecules in this file are " + molCount)
 
     sc.stop()
 
