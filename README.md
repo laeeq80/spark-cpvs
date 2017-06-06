@@ -7,7 +7,7 @@ Clone the repo on local
 
 On command line, perform the following command in the vs project directory
 
-mvn clean install -DskipTests
+`mvn clean install -DskipTests`
 
 This will install vs project in local maven repositories
 	
@@ -28,6 +28,6 @@ If you have scala version problems follow this procedure:
 3. Click apply and let the IDE clean the project
 
 
-Now you can get familiar with Spark-CPVS giving a look to the examples, and running them in Scala IDE. The main example is DockWithML. 
+Now you can get familiar with Spark-CPVS giving a look to the examples, and running them in Scala IDE. The main example is DockerWithML. 
 In the data directory you can find an example SDF as well as a receptor file. You will need a larger sdf file and relevant top scores. 
 Remember that in order to run examples you need to specify arguments and OE_LICENSE environment variable through Run Configurations.
