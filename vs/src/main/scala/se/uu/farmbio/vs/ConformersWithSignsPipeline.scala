@@ -14,8 +14,6 @@ import java.io.PrintWriter
 trait ConformersWithSignsTransforms {
   def dockWithML(
     receptorPath: String,
-    method: Int,
-    resolution: Int,
     dsInitSize: Int,
     dsIncreSize: Int,
     calibrationPercent: Double,
@@ -97,8 +95,6 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
   override def dockWithML(
     receptorPath: String,
-    method: Int,
-    resolution: Int,
     dsInitSize: Int,
     dsIncreSize: Int,
     calibrationPercent: Double,
@@ -145,8 +141,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
-        .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInitToDock)
-        //Removing empty molecules caused by oechem optimization problem
+        .getDockingRDD(receptorPath, dockTimePerMol = false, sc, dsInitToDock)
         .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.DISK_ONLY)
         
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
@@ -164,12 +159,12 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
 
       //Step 6 and 7 Computing dsTopAndBottom
-      val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).persist(StorageLevel.MEMORY_ONLY)
+      val parseScoreRDD = dsDock.map(PosePipeline.parseScore).persist(StorageLevel.MEMORY_ONLY)
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
       val dsTopAndBottom = dsDock.map {
         case (mol) =>
-          val score = PosePipeline.parseScore(method)(mol)
+          val score = PosePipeline.parseScore(mol)
           ConformersWithSignsPipeline.labelTopAndBottom(mol, score, parseScoreHistogram._1, badIn, goodIn)
       }.map(_.trim).filter(_.nonEmpty)
 
@@ -246,8 +241,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     
     val dsOnePredictedToDock = dsOnePredicted.mapPartitions(x=>Seq(x.mkString("\n")).iterator)
     
-    val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, false, sc, dsOnePredictedToDock)
-      //Removing empty molecules caused by oechem optimization problem
+    val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, false, sc, dsOnePredictedToDock)
       .flatMap(SBVSPipeline.splitSDFmolecules)
 
     //Keeping rest of processed poses i.e. dsOne mol poses
@@ -255,7 +249,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       poses = dsDockOne
     else
       poses = poses.union(dsDockOne)  
-    new PosePipeline(poses, method)
+    new PosePipeline(poses)
   }
 
 }

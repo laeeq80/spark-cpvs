@@ -60,20 +60,20 @@ object Compare extends Logging {
     val sc = new SparkContext(conf)
 
     val mols1 = new SBVSPipeline(sc)
-      .readPoseFile(params.firstFile, OEDockMethod.Chemgauss4)
+      .readPoseFile(params.firstFile)
       .getMolecules
       .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
       
-    val scores1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }
+    val scores1 = mols1.map { mol => PosePipeline.parseScore(mol) }
     
     val Array1 = scores1.collect()
     
     val mols2 = new SBVSPipeline(sc)
-      .readPoseFile(params.secondFile, OEDockMethod.Chemgauss4)
+      .readPoseFile(params.secondFile)
       .getMolecules
       .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
    
-    val scores2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }
+    val scores2 = mols2.map { mol => PosePipeline.parseScore(mol) }
     
     val Array2 = scores2.collect()
     

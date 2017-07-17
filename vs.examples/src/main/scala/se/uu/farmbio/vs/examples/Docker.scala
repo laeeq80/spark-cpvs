@@ -97,7 +97,7 @@ object Docker extends Logging {
 
     var poses = new SBVSPipeline(sc)
       .readConformerRDDs(Seq(sampleRDD))
-      .dock(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard, params.dockTimePerMol)
+      .dock(params.receptorFile, params.dockTimePerMol)
     val cachedPoses = poses.getMolecules.cache()  
     val res = poses.getTopPoses(params.topN)
 

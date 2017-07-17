@@ -174,7 +174,6 @@ object DockerWithML extends Logging {
 
     val conformerWithSigns = new SBVSPipeline(sc2)
       .readConformerWithSignsFile(params.signatureFile)
-      /*
       .dockWithML(params.receptorFile,
         params.dsInitSize,
         params.dsIncreSize,
@@ -192,12 +191,12 @@ object DockerWithML extends Logging {
     val mols1 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
      
-    val Array1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
+    val Array1 = mols1.map { mol => PosePipeline.parseScore(mol) }.collect()
 
     val mols2 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
 
-    val Array2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }.collect()
+    val Array2 = mols2.map { mol => PosePipeline.parseScore(mol) }.collect()
 
     var counter: Double = 0.0
     for (i <- 0 to Array1.length - 1)
@@ -209,7 +208,7 @@ object DockerWithML extends Logging {
     logInfo("JOB_INFO: Number of molecules matched are " + counter)
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
     sc2.stop()
-*/
+
   }
 
 }

@@ -32,8 +32,7 @@ class DockingCheck extends FunSuite with BeforeAndAfterAll {
     //Parallel Execution
     val resPar = new SBVSPipeline(sc)
       .readConformerFile(getClass.getResource("chembl_1000_samples.sdf").getPath)
-      .dock(getClass.getResource("receptor.oeb").getPath,
-        OEDockMethod.Chemgauss4, OESearchResolution.Standard)
+      .dock(getClass.getResource("receptor.oeb").getPath)
       .getMolecules
       .collect
 

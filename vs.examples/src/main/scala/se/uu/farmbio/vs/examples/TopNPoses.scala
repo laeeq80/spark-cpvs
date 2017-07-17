@@ -60,7 +60,7 @@ object TopNPoses extends Logging {
     val sc = new SparkContext(conf)
 
     val res = new SBVSPipeline(sc)
-      .readPoseFile(params.poseFile, OEDockMethod.Chemgauss4)
+      .readPoseFile(params.poseFile)
       .getTopPoses(params.topN)
 
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)

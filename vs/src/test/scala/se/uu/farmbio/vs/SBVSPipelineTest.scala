@@ -28,7 +28,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
   ignore("sortByScore should sort a set of poses by score") {
 
     val res = new SBVSPipeline(sc)
-      .readPoseFile(getClass.getResource("filtered_collapsed.sdf").getPath, OEDockMethod.Chemgauss4)
+      .readPoseFile(getClass.getResource("filtered_collapsed.sdf").getPath)
       .sortByScore
       .getMolecules
       .collect
@@ -43,7 +43,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     val n = 2
 
     val res = new SBVSPipeline(sc)
-      .readPoseFile(getClass.getResource("filtered_poses.sdf").getPath, OEDockMethod.Chemgauss4)
+      .readPoseFile(getClass.getResource("filtered_poses.sdf").getPath)
       .collapse(n)
       .getMolecules
       .collect
@@ -130,7 +130,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
   test("getTopPoses should return the topN poses") {
     val topN = 10
     val res = new SBVSPipeline(sc)
-      .readPoseFile(getClass.getResource("unsorted_poses.sdf").getPath, OEDockMethod.Chemgauss4)
+      .readPoseFile(getClass.getResource("unsorted_poses.sdf").getPath)
       .getTopPoses(topN)
     
     val topCollapsed = TestUtils.readSDF(getClass.getResource("top_collapsed.sdf").getPath)
