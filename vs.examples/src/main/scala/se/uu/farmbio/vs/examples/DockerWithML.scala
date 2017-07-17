@@ -60,9 +60,6 @@ object DockerWithML extends Logging {
         .required()
         .text("path to top output poses")
         .action((x, c) => c.copy(topPosesPath = x))
-      opt[String]("oeLicensePath")
-        .text("path to OEChem License")
-        .action((x, c) => c.copy(oeLicensePath = x))
       arg[String]("<first-file>")
         .required()
         .text("path to input file with top N mols")
@@ -153,7 +150,7 @@ object DockerWithML extends Logging {
       .saveAsTextFile(params.signatureFile)
 
     sc.stop()
-
+/*
     val conf2 = new SparkConf()
       .setAppName("DockerWithML2")
     if (params.oeLicensePath != null) {
@@ -218,7 +215,7 @@ object DockerWithML extends Logging {
     logInfo("JOB_INFO: Number of molecules matched are " + counter)
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
     sc2.stop()
-
+*/
   }
 
 }
