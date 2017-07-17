@@ -7,8 +7,6 @@ import org.apache.spark.SparkContext._
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
-import openeye.oedocking.OEDockMethod
-import openeye.oedocking.OESearchResolution
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.io.Text
 import se.uu.farmbio.parsers.SDFInputFormat
@@ -150,12 +148,9 @@ object DockerWithML extends Logging {
       .saveAsTextFile(params.signatureFile)
 
     sc.stop()
-/*
+
     val conf2 = new SparkConf()
       .setAppName("DockerWithML2")
-    if (params.oeLicensePath != null) {
-      conf2.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
-    }
     if (params.master != null) {
       conf2.setMaster(params.master)
     }
@@ -179,9 +174,8 @@ object DockerWithML extends Logging {
 
     val conformerWithSigns = new SBVSPipeline(sc2)
       .readConformerWithSignsFile(params.signatureFile)
+      /*
       .dockWithML(params.receptorFile,
-        OEDockMethod.Chemgauss4,
-        OESearchResolution.Standard,
         params.dsInitSize,
         params.dsIncreSize,
         params.calibrationPercent,
