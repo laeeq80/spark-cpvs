@@ -52,7 +52,7 @@ object DockerWithML extends Logging {
         .action((x, c) => c.copy(conformersFile = x))
       arg[String]("<receptor-file>")
         .required()
-        .text("path to input OEB receptor file")
+        .text("path to input PDBQT receptor file")
         .action((x, c) => c.copy(receptorFile = x))
       arg[String]("<top-poses-path>")
         .required()

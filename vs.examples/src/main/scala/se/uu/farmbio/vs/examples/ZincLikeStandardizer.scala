@@ -1,4 +1,4 @@
-package se.uu.farmbio.vs.examples
+/*package se.uu.farmbio.vs.examples
 
 import org.apache.spark.Logging
 import org.apache.spark.SparkConf
@@ -78,4 +78,4 @@ object ZincLikeStandardizer extends Logging {
 
   }
 
-}
+}*/

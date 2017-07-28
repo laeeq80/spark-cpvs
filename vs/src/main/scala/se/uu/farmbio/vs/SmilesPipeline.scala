@@ -1,4 +1,4 @@
-package se.uu.farmbio.vs
+/*package se.uu.farmbio.vs
 
 import java.io.InputStream
 
@@ -47,4 +47,4 @@ extends SBVSPipeline(rdd) with SmilesTransforms {
       new SmilesPipeline(res)
     }
 
-  }
+  }*/

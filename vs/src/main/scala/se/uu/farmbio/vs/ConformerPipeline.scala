@@ -26,7 +26,9 @@ trait ConformerTransforms {
 }
 
 object ConformerPipeline extends Logging {
-  val DOCKING_CPP_URL = "http://pele.farmbio.uu.se/spark-vs/dockingstd"
+  val VINA_DOCKING_URL = "http://pele.farmbio.uu.se/cpvs-vina/multivina.sh"
+  val VINA_CONF_URL = "http://pele.farmbio.uu.se/cpvs-vina/conf.txt"
+  val VINA_HOME = "http://pele.farmbio.uu.se/cpvs-vina/"
   //The Spark built-in pipe splits molecules line by line, we need a custom one
   private[vs] def pipeString(str: String, command: List[String]) = {
 
@@ -55,19 +57,30 @@ object ConformerPipeline extends Logging {
   }
 
   private[vs] def getDockingRDD(receptorPath: String, dockTimePerMol: Boolean, sc: SparkContext, rdd: RDD[String]) = {
-    //Use local CPP if DOCKING_CPP is set
-    val dockingstdPath = if (System.getenv("DOCKING_CPP") != null) {
-      logInfo("JOB_INFO: using local dockingstd: " + System.getenv("DOCKING_CPP"))
-      System.getenv("DOCKING_CPP")
+    //Use local sh file if VINA_DOCKING is set
+    val vinaDockingPath = if (System.getenv("VINA_DOCKING") != null) {
+      logInfo("JOB_INFO: using local multivana: " + System.getenv("VINA_DOCKING"))
+      System.getenv("VINA_DOCKING")
     } else {
-      logInfo("JOB_INFO: using remote dockingstd: " + DOCKING_CPP_URL)
-      DOCKING_CPP_URL
+      logInfo("JOB_INFO: using remote multivina: " + VINA_DOCKING_URL)
+      VINA_DOCKING_URL
     }
-
-    sc.addFile(dockingstdPath)
+    
+    //Use local vina conf.txt file if VINA_CONF is set
+    val vinaConfPath = if (System.getenv("VINA_CONF") != null) {
+      logInfo("JOB_INFO: using local vina conf: " + System.getenv("VINA_CONF"))
+      System.getenv("VINA_CONF")
+    } else {
+      logInfo("JOB_INFO: using remote vina conf: " + VINA_CONF_URL)
+      VINA_CONF_URL
+    }
+    
+    sc.addFile(vinaConfPath)
+    sc.addFile(vinaDockingPath)
     sc.addFile(receptorPath)
     val receptorFileName = Paths.get(receptorPath).getFileName.toString
-    val dockingstdFileName = Paths.get(dockingstdPath).getFileName.toString
+    val dockingstdFileName = Paths.get(vinaDockingPath).getFileName.toString
+    val confFileName = Paths.get(vinaConfPath).getFileName.toString
     val pipedRDD = rdd.map { sdf =>
       ConformerPipeline.pipeString(sdf,
         List(SparkFiles.get(dockingstdFileName),

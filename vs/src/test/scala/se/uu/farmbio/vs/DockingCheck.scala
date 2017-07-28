@@ -45,8 +45,6 @@ class DockingCheck extends FunSuite with BeforeAndAfterAll {
     val resSer =
       ConformerPipeline.pipeString(conformerStr,
         List(dockingstdFileName,
-          OEDockMethod.Chemgauss4.toString(),
-          OESearchResolution.Standard.toString(),
           receptorFileName))
 
     assert(resPar.map(TestUtils.removeSDFheader).toSet

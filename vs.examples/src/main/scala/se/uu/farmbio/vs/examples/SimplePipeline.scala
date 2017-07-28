@@ -1,4 +1,4 @@
-package se.uu.farmbio.vs.examples
+/*package se.uu.farmbio.vs.examples
 
 import java.io.FileInputStream
 import java.io.PrintWriter
@@ -84,4 +84,4 @@ object SimplePipeline {
 
   }
 
-}
+}*/

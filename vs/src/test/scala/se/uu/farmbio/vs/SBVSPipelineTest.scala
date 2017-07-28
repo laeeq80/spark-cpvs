@@ -52,7 +52,7 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(res.toSet === filteredCollapsed.toSet)
 
   }
-
+/*
   test("filter should filter a set of SMILES according to the provided custom filter") {
 
     val res = new SBVSPipeline(sc)
@@ -77,8 +77,8 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     val filtered = TestUtils.readSmiles(getClass.getResource("filtered.smi").getPath)
     assert(res.flatMap(TestUtils.splitSmiles).toSet === filtered.toSet)
 
-  }
-
+  }*/
+/*
   test("generateConformers should generate conformers from a SMILES file according to a maxCenters parameter") {
 
     val res = new SBVSPipeline(sc)
@@ -111,6 +111,8 @@ class SBVSPipelineTest extends FunSuite with BeforeAndAfterAll {
     assert(resSet === filtTest)
 
   }
+  * 
+  */
 /*
   test("dock should dock a set of conformers to a receptor and generate the poses") {
 

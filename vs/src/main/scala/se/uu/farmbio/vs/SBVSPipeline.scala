@@ -16,7 +16,7 @@ import org.openscience.cdk.silent.ChemFile
 import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
 
-import openeye.oechem.OEErrorLevel
+//import openeye.oechem.OEErrorLevel
 import java.util._
 import scala.collection.JavaConversions._
 
@@ -50,15 +50,15 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
 
   protected val sc = rdd.context
   protected val defaultParallelism = sc.getConf.get("spark.default.parallelism", "2").toInt
-  protected val oeErrorLevel =
+  /*protected val oeErrorLevel =
     sc.getConf.get("oechem.error.level", OEErrorLevel.Error.toString).toInt
   logDebug(s"OEChem error level is: $oeErrorLevel")
-
+*/
   def getMolecules = rdd
-
+/*
   def readSmilesRDDs(smiles: Seq[RDD[String]]): SBVSPipeline with SmilesTransforms = {
     new SmilesPipeline(sc.union(smiles))
-  }
+  }*/
 
   def readConformerRDDs(conformers: Seq[RDD[String]]): SBVSPipeline with ConformerTransforms = {
     new ConformerPipeline(sc.union(conformers))
@@ -71,13 +71,13 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
   def readConformersWithSignsRDDs(conformersWithSigns: Seq[RDD[String]]): SBVSPipeline with ConformersWithSignsTransforms = {
     new ConformersWithSignsPipeline(sc.union(conformersWithSigns))
   }
-
+/*
   def readSmilesFile(path: String): SBVSPipeline with SmilesTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SmilesInputFormat](path, defaultParallelism)
       .map(_._2.toString) //convert to string RDD
     new SmilesPipeline(rdd)
   }
-
+*/
   def readConformerFile(path: String): SBVSPipeline with ConformerTransforms = {
     val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
       .map(_._2.toString) //convert to string RDD

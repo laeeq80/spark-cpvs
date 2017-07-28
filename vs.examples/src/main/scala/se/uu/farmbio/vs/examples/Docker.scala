@@ -4,8 +4,6 @@ import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 
-import openeye.oedocking.OEDockMethod
-import openeye.oedocking.OESearchResolution
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 
@@ -41,9 +39,6 @@ object Docker extends Logging {
       opt[String]("posesCheckpointPath")
         .text("path to checkpoint all of the output poses before taking the top 10 (default: null)")
         .action((x, c) => c.copy(posesCheckpointPath = x))
-      opt[String]("oeLicensePath")
-        .text("path to OEChem License")
-        .action((x, c) => c.copy(oeLicensePath = x))
       opt[Int]("topN")
         .text("number of top scoring poses to extract (default: 30).")
         .action((x, c) => c.copy(topN = x))
@@ -56,7 +51,7 @@ object Docker extends Logging {
         .action((x, c) => c.copy(conformersFile = x))
       arg[String]("<receptor-file>")
         .required()
-        .text("path to input OEB receptor file")
+        .text("path to input PDBQT receptor file")
         .action((x, c) => c.copy(receptorFile = x))
       arg[String]("<top-poses-path>")
         .required()
@@ -78,9 +73,7 @@ object Docker extends Logging {
     //Init Spark
     val conf = new SparkConf()
       .setAppName("Docker")
-    if (params.oeLicensePath != null) {
-      conf.setExecutorEnv("OE_LICENSE", params.oeLicensePath)
-    }
+   
     if (params.master != null) {
       conf.setMaster(params.master)
     }
@@ -94,18 +87,20 @@ object Docker extends Logging {
     if (params.sampleSize < 1.0) { //Samples Data on the basis of sampleSize Parameter
       sampleRDD = sampleRDD.sample(false, params.sampleSize) //Does not take effect for complete set
     }
-
+    
     var poses = new SBVSPipeline(sc)
       .readConformerRDDs(Seq(sampleRDD))
       .dock(params.receptorFile, params.dockTimePerMol)
     val cachedPoses = poses.getMolecules.cache()  
+    cachedPoses.saveAsTextFile("data/poses")
+    /*
     val res = poses.getTopPoses(params.topN)
 
     if (params.posesCheckpointPath != null) {
       cachedPoses.saveAsTextFile(params.posesCheckpointPath)
     }
     sc.parallelize(res, 1).saveAsTextFile(params.topPosesPath)
-
+*/
   }
 
 }
