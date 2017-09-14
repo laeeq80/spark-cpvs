@@ -7,6 +7,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
 import se.uu.farmbio.parsers.SDFInputFormat
+import se.uu.farmbio.parsers.PDBInputFormat
 import se.uu.farmbio.parsers.SmilesInputFormat
 
 import org.openscience.cdk.io.MDLV2000Reader
@@ -25,7 +26,11 @@ private[vs] object SBVSPipeline {
   def splitSDFmolecules(molecules: String) = {
     molecules.trim.split("\\$\\$\\$\\$").map(_.trim + "\n\n$$$$").toList
   }
-
+ 
+  def splitPDBmolecules(molecules: String) = {
+    molecules.trim.split("ENDMDL").map(_.trim + "\nENDMDL\n").toList
+  }
+  
   //The function takes sdfRecord and returns a List of IAtomContainer
   def CDKInit(sdfRecord: String) = {
     val sdfByteArray = sdfRecord
@@ -79,7 +84,7 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
   }
 */
   def readConformerFile(path: String): SBVSPipeline with ConformerTransforms = {
-    val rdd = sc.hadoopFile[LongWritable, Text, SDFInputFormat](path, defaultParallelism)
+    val rdd = sc.hadoopFile[LongWritable, Text, PDBInputFormat](path, defaultParallelism)
       .map(_._2.toString) //convert to string RDD
     new ConformerPipeline(rdd)
   }

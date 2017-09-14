@@ -43,11 +43,11 @@ object Docker extends Logging {
         .text("number of top scoring poses to extract (default: 30).")
         .action((x, c) => c.copy(topN = x))
       opt[Unit]("dockTimePerMol")
-        .text("if set the docking time will be saved in the results as SDF field")
+        .text("if set the docking time will be saved in the results as a PDB REMARK")
         .action((_, c) => c.copy(dockTimePerMol = true))
       arg[String]("<conformers-file>")
         .required()
-        .text("path to input SDF conformers file")
+        .text("path to input PDBQT conformers file")
         .action((x, c) => c.copy(conformersFile = x))
       arg[String]("<receptor-file>")
         .required()
@@ -78,7 +78,7 @@ object Docker extends Logging {
       conf.setMaster(params.master)
     }
     val sc = new SparkContext(conf)
-    sc.hadoopConfiguration.set("se.uu.farmbio.parsers.SDFRecordReader.size", params.size)
+    sc.hadoopConfiguration.set("se.uu.farmbio.parsers.PDBRecordReader.size", params.size)
 
     var sampleRDD = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
@@ -91,9 +91,11 @@ object Docker extends Logging {
     var poses = new SBVSPipeline(sc)
       .readConformerRDDs(Seq(sampleRDD))
       .dock(params.receptorFile, params.dockTimePerMol)
+   poses.getMolecules.saveAsTextFile("data/test")   
+   /* 
     val cachedPoses = poses.getMolecules.cache()  
     cachedPoses.saveAsTextFile("data/poses")
-    /*
+    
     val res = poses.getTopPoses(params.topN)
 
     if (params.posesCheckpointPath != null) {

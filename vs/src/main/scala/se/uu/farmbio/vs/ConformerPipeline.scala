@@ -83,8 +83,8 @@ object ConformerPipeline extends Logging {
     val confFileName = Paths.get(vinaConfPath).getFileName.toString
     val pipedRDD = rdd.map { sdf =>
       ConformerPipeline.pipeString(sdf,
-        List(SparkFiles.get(dockingstdFileName),
-          SparkFiles.get(receptorFileName)))
+        List(SparkFiles.get(dockingstdFileName),"--receptor",
+          SparkFiles.get(receptorFileName), "--config", SparkFiles.get(confFileName)))
     }
     pipedRDD
   }
@@ -123,7 +123,7 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
 
   override def dock(receptorPath: String, dockTimePerMol: Boolean) = {
     val pipedRDD = ConformerPipeline.getDockingRDD(receptorPath, dockTimePerMol, sc, rdd)
-    val res = pipedRDD.flatMap(SBVSPipeline.splitSDFmolecules)
+    val res = pipedRDD.flatMap(SBVSPipeline.splitPDBmolecules)
     new PosePipeline(res)
   }
 
