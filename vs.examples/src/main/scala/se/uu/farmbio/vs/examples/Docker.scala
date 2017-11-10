@@ -3,11 +3,11 @@ package se.uu.farmbio.vs.examples
 import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
+import java.io.PrintWriter
 
 object Docker extends Logging {
   case class Params(
@@ -98,7 +98,8 @@ object Docker extends Logging {
     var poses = new SBVSPipeline(sc)
       .readConformerRDDs(Seq(sampleRDD))
       .dock(params.receptorFile, OEDockMethod.Chemgauss4, OESearchResolution.Standard, params.dockTimePerMol)
-    val cachedPoses = poses.getMolecules.cache()  
+    val cachedPoses = poses.getMolecules.cache()
+  
     val res = poses.getTopPoses(params.topN)
 
     if (params.posesCheckpointPath != null) {

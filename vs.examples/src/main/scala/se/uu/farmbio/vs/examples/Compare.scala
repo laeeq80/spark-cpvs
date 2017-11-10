@@ -64,7 +64,7 @@ object Compare extends Logging {
       .getMolecules
       .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
       
-    val scores1 = mols1.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }
+    val scores1 = mols1.map { mol => PosePipeline.parseId(mol) }
     
     val Array1 = scores1.collect()
     
@@ -73,7 +73,7 @@ object Compare extends Logging {
       .getMolecules
       .flatMap {  mol => SBVSPipeline.splitSDFmolecules(mol.toString) }
    
-    val scores2 = mols2.map { mol => PosePipeline.parseScore(OEDockMethod.Chemgauss4)(mol) }
+    val scores2 = mols2.map { mol => PosePipeline.parseId(mol) }
     
     val Array2 = scores2.collect()
     

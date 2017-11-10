@@ -18,7 +18,7 @@ trait PoseTransforms {
 
 private[vs] object PosePipeline extends Logging {
 
-  private def parseId(pose: String) = {
+  private[vs] def parseId(pose: String) = {
     Source.fromString(pose).getLines.next
   }
 
@@ -43,9 +43,11 @@ private[vs] object PosePipeline extends Logging {
       if (it.hasNext()) {
         val mol = it.next
         res = mol.getProperty(methodString)
-
+        
       }
-      score = res.toDouble
+      if (res != "340282346638528859811704183484516925440.000000")
+        {score = res.toDouble}
+      score
     } catch {
 
       case exec: Exception => logWarning("JOB_INFO: Setting the score to Double.MinValue." +
@@ -77,8 +79,11 @@ private[vs] object PosePipeline extends Logging {
       if (it.hasNext()) {
         val mol = it.next
         res = mol.getProperty(methodString)
+        
       }
-      result = res.toDouble
+      if (res != "340282346638528859811704183484516925440.000000")
+        {result = res.toDouble}
+      result
     } catch {
 
       case exec: Exception => logWarning("JOB_INFO: Setting the score to Double.MinValue." +
