@@ -1,19 +1,26 @@
 package se.uu.farmbio.vs
 
-import se.uu.farmbio.cp.ICP
-import se.uu.farmbio.cp.alg.SVM
-import org.apache.spark.rdd.RDD
-import org.apache.spark.Logging
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.mllib.linalg.{ Vector, Vectors }
-import org.openscience.cdk.io.SDFWriter
 import java.io.StringWriter
+import java.nio.file.Paths
+import java.sql.DriverManager
+import org.apache.commons.io.FilenameUtils
+import org.apache.spark.SparkContext
+import org.apache.spark.mllib.linalg.Vector
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.RDD.doubleRDDToDoubleRDDFunctions
 import org.apache.spark.storage.StorageLevel
-import java.io.PrintWriter
+import org.openscience.cdk.io.SDFWriter
+import se.uu.farmbio.cp.ICP
+import se.uu.farmbio.cp.ICPClassifierModel
+import se.uu.farmbio.cp.alg.SVM
+import java.sql.PreparedStatement
 
 trait ConformersWithSignsTransforms {
   def dockWithML(
     receptorPath: String,
+    pdbCode: String,
     method: Int,
     resolution: Int,
     dsInitSize: Int,
@@ -90,6 +97,37 @@ object ConformersWithSignsPipeline extends Serializable {
     strWriter.toString() //return the molecule  
   }
 
+  private def insertMaster(receptorPath: String, model: ICPClassifierModel[SVM], pdbCode: String) {
+
+    //Getting filename from Path and trimming the extension
+    val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
+    println("JOB_INFO: The value of r_name is " + r_name)
+    
+    Class.forName("org.mariadb.jdbc.Driver")
+    val jdbcUrl = s"jdbc:mysql://localhost:3306/db_profile?user=root&password=2264421_root"
+
+    val connection = DriverManager.getConnection(jdbcUrl)
+    if (!(connection.isClosed())) {
+
+      val sqlInsert: PreparedStatement = connection.prepareStatement("INSERT INTO RECEPTORS(r_name, pdbCode, model) VALUES (?, ?, ?)")
+      
+      println("JOB_INFO: Start Serializing")
+      
+      // set input parameters
+      sqlInsert.setString(1, r_name)
+      sqlInsert.setString(2, pdbCode)
+      sqlInsert.setObject(3, model)
+      sqlInsert.executeUpdate()
+
+      sqlInsert.close()
+      println("JOB_INFO: Done Serializing")
+
+    } else {
+      println("MariaDb Connection is Close")
+      System.exit(1)
+    }
+  }
+
 }
 
 private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
@@ -97,6 +135,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
   override def dockWithML(
     receptorPath: String,
+    pdbCode: String,
     method: Int,
     resolution: Int,
     dsInitSize: Int,
@@ -138,19 +177,19 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       else
         dsInit = ds.sample(false, dsIncreSize / ds.count.toDouble)
 
-     logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
-      
-      val dsInitToDock = dsInit.mapPartitions(x=>Seq(x.mkString("\n")).iterator)
-   
+      logInfo("JOB_INFO: Sample taken for docking in cycle " + counter)
+
+      val dsInitToDock = dsInit.mapPartitions(x => Seq(x.mkString("\n")).iterator)
+
       //Step 3
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInitToDock)
         //Removing empty molecules caused by oechem optimization problem
         .flatMap(SBVSPipeline.splitSDFmolecules).persist(StorageLevel.DISK_ONLY)
-        
+
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
-            
+
       //Step 4
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
@@ -196,6 +235,8 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
 
+      //ConformersWithSignsPipeline.insertMaster(receptorPath, icp, pdbCode)
+
       parseScoreRDD.unpersist()
       lpDsTrain.unpersist()
       properTraining.unpersist()
@@ -239,13 +280,14 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         dsOnePredicted = predictions
           .filter { case (sdfmol, prediction) => (prediction == Set(1.0)) }
           .map { case (sdfmol, prediction) => sdfmol }
+        //ConformersWithSignsPipeline.insertMaster(receptorPath, icp, pdbCode)
       }
     } while (effCounter < 2 && !singleCycle)
 
     dsOnePredicted = dsOnePredicted.subtract(poses)
-    
-    val dsOnePredictedToDock = dsOnePredicted.mapPartitions(x=>Seq(x.mkString("\n")).iterator)
-    
+
+    val dsOnePredictedToDock = dsOnePredicted.mapPartitions(x => Seq(x.mkString("\n")).iterator)
+
     val dsDockOne = ConformerPipeline.getDockingRDD(receptorPath, method, resolution, false, sc, dsOnePredictedToDock)
       //Removing empty molecules caused by oechem optimization problem
       .flatMap(SBVSPipeline.splitSDFmolecules)
@@ -254,7 +296,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     if (poses == null)
       poses = dsDockOne
     else
-      poses = poses.union(dsDockOne)  
+      poses = poses.union(dsDockOne)
     new PosePipeline(poses, method)
   }
 

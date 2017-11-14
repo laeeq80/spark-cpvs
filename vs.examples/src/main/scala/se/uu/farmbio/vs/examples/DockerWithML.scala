@@ -39,7 +39,8 @@ object DockerWithML extends Logging {
     singleCycle: Boolean = false,
     stratified: Boolean = false,
     confidence: Double = 0.2,
-    size: String = "30")
+    size: String = "30",
+    pdbCode: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -108,6 +109,10 @@ object DockerWithML extends Logging {
       opt[String]("size")
         .text("it controls how many molecules are handled within a task (default: 30).")
         .action((x, c) => c.copy(size = x))
+      opt[String]("pdbCode")
+        .required()
+        .text("receptor PDB code")
+        .action((x, c) => c.copy(pdbCode = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -183,6 +188,7 @@ object DockerWithML extends Logging {
     val conformerWithSigns = new SBVSPipeline(sc2)
       .readConformerWithSignsFile(params.signatureFile)
       .dockWithML(params.receptorFile,
+        params.pdbCode,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
         params.dsInitSize,
@@ -200,7 +206,7 @@ object DockerWithML extends Logging {
 
     val mols1 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
-     
+
     val Array1 = mols1.map { mol => PosePipeline.parseId(mol) }.collect()
 
     val mols2 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.secondFile, 2)
