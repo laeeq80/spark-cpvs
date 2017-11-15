@@ -21,16 +21,17 @@ object DockerWithML extends Logging {
     topPosesPath: String = null,
     firstFile: String = null,
     secondFile: String = null,
-    dsInitPercent: Double = 0.1,
-    dsIncrePercent: Double = 0.05,
-    calibrationSize: Int = 200,
+    dsInitSize: Int = 100,
+    dsIncreSize: Int = 50,
+    calibrationPercent: Double = 0.3,
     numIterations: Int = 50,
     topN: Int = 30,
     badIn: Int = 1,
     goodIn: Int = 4,
     singleCycle: Boolean = false,
     stratified: Boolean = false,
-    confidence: Double = 0.2)
+    confidence: Double = 0.2,
+    pdbCode: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -55,15 +56,15 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input file that you want to check for accuracy")
         .action((x, c) => c.copy(secondFile = x))
-      opt[Double]("dsInitPercent")
-        .text("initial Data Size Percent to be docked (default: 0.1)")
-        .action((x, c) => c.copy(dsInitPercent = x))
-      opt[Double]("dsIncrePercent")
-        .text("incremental Data Size Percent to be docked (default: 0.05)")
-        .action((x, c) => c.copy(dsIncrePercent = x))
-      opt[Int]("calibrationSize")
-        .text("calibration Set Size from training set (default: 200)")
-        .action((x, c) => c.copy(calibrationSize = x))
+      opt[Int]("dsInitSize")
+        .text("initial Data Size to be docked (default: 100)")
+        .action((x, c) => c.copy(dsInitSize = x))
+      opt[Int]("dsIncreSize")
+        .text("incremental Data Size to be docked (default: 50)")
+        .action((x, c) => c.copy(dsIncreSize = x))
+      opt[Double]("calibrationPercent")
+        .text("calibration Percent from training set (default: 0.3)")
+        .action((x, c) => c.copy(calibrationPercent = x))
       opt[Int]("numIterations")
         .text("number of iternations for the ML model training (default: 100)")
         .action((x, c) => c.copy(numIterations = x))
@@ -84,7 +85,11 @@ object DockerWithML extends Logging {
         .action((_, c) => c.copy(stratified = true))
       opt[Double]("confidence")
         .text("confidence for conformal prediction (default: 1 - 0.2)")
-        .action((x, c) => c.copy(confidence = x)) 
+        .action((x, c) => c.copy(confidence = x))
+      opt[String]("pdbCode")
+        .required()
+        .text("receptor PDB code")
+        .action((x, c) => c.copy(pdbCode = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -112,9 +117,10 @@ object DockerWithML extends Logging {
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
 
     val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
-      .dockWithML(params.dsInitPercent,
-        params.dsIncrePercent,
-        params.calibrationSize,
+      .dockWithML(params.pdbCode,
+        params.dsInitSize,
+        params.dsIncreSize,
+        params.calibrationPercent,
         params.numIterations,
         params.badIn,
         params.goodIn,
@@ -129,13 +135,13 @@ object DockerWithML extends Logging {
       .readPoseFile(params.firstFile)
       .getMolecules
 
-    val Array1 = mols1.map { mol => PosePipeline.parseScore(mol) }.collect()
+    val Array1 = mols1.map { mol => PosePipeline.parseId(mol) }.collect()
 
     val mols2 = new SBVSPipeline(sc)
       .readPoseFile(params.secondFile)
       .getMolecules
 
-    val Array2 = mols2.map { mol => PosePipeline.parseScore(mol) }.collect()
+    val Array2 = mols2.map { mol => PosePipeline.parseId(mol) }.collect()
 
     var counter: Double = 0.0
     for (i <- 0 to Array1.length - 1)

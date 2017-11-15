@@ -15,7 +15,7 @@ trait PoseTransforms {
 
 private[vs] object PosePipeline extends Logging {
 
-  private def parseId(pose: String) = {
+  private[vs] def parseId(pose: String) = {
     Source.fromString(pose).getLines.next
   }
 

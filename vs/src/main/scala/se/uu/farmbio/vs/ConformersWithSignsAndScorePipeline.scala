@@ -9,12 +9,18 @@ import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
 import java.io.StringWriter
 import se.uu.farmbio.cp.alg.SVM
+import java.sql.DriverManager
+import java.nio.file.Paths
+import java.sql.PreparedStatement
+import org.apache.commons.io.FilenameUtils
+import se.uu.farmbio.cp.ICPClassifierModel
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
-    dsInitPercent: Double,
-    dsIncrePercent: Double,
-    calibrationSize: Int,
+    pdbCode: String,
+    dsInitSize: Int,
+    dsIncreSize: Int,
+    calibrationPercent: Double,
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
@@ -116,15 +122,47 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
 
   }
 
+  private def insertMaster(receptorPath: String, model: ICPClassifierModel[SVM], pdbCode: String) {
+
+    //Getting filename from Path and trimming the extension
+    val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
+    println("JOB_INFO: The value of r_name is " + r_name)
+
+    Class.forName("org.mariadb.jdbc.Driver")
+    val jdbcUrl = s"jdbc:mysql://localhost:3306/db_profile?user=root&password=2264421_root"
+
+    val connection = DriverManager.getConnection(jdbcUrl)
+    if (!(connection.isClosed())) {
+
+      val sqlInsert: PreparedStatement = connection.prepareStatement("INSERT INTO RECEPTORS(r_name, pdbCode, model) VALUES (?, ?, ?)")
+
+      println("JOB_INFO: Start Serializing")
+
+      // set input parameters
+      sqlInsert.setString(1, r_name)
+      sqlInsert.setString(2, pdbCode)
+      sqlInsert.setObject(3, model)
+      sqlInsert.executeUpdate()
+
+      sqlInsert.close()
+      println("JOB_INFO: Done Serializing")
+
+    } else {
+      println("MariaDb Connection is Close")
+      System.exit(1)
+    }
+  }
+
 }
 
 private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[String])
     extends SBVSPipeline(rdd) with ConformersWithSignsAndScoreTransforms {
 
   override def dockWithML(
-    dsInitPercent: Double,
-    dsIncrePercent: Double,
-    calibrationSize: Int,
+    pdbCode: String,
+    dsInitSize: Int,
+    dsIncreSize: Int,
+    calibrationPercent: Double,
     numIterations: Int,
     badIn: Int,
     goodIn: Int,
@@ -164,9 +202,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //Step 1
       //Get a sample of the data
       if (dsInit == null)
-        dsInit = ds.sample(false, dsInitPercent).cache()
+        dsInit = ds.sample(false, dsInitSize / ds.count.toDouble)
       else
-        dsInit = ds.sample(false, dsIncrePercent).cache()
+        dsInit = ds.sample(false, dsIncreSize / ds.count.toDouble)
 
       //Step 2
       //Subtract the sampled molecules from main dataset
@@ -234,14 +272,17 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       }
 
       //Step 8 Training
+      calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
       val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain.cache, calibrationSize, stratified)
+        lpDsTrain.cache, calibrationSizeDynamic, stratified)
 
-      //Train ICP
+      //Train ICP  
       val svm = new SVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
-            
+      
+      ConformersWithSignsAndScorePipeline.insertMaster("/blah/blah/receptorxyz.oeb", icp, pdbCode)
+     
       lpDsTrain.unpersist()
       properTraining.unpersist()
 
@@ -250,7 +291,6 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, confidence))
       }
 
-         
       val dsZeroPredicted: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }.cache
@@ -263,8 +303,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       val dsEmptyUnknown: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set()) }
         .map { case (sdfmol, prediction) => sdfmol }
-      
-        
+
       //Step 10 Subtracting {0} moles from dataset which has not been previously subtracted
       if (dsZeroRemoved == null)
         dsZeroRemoved = dsZeroPredicted.subtract(poses)
@@ -279,10 +318,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       logInfo("JOB_INFO: Number of good mols predicted in cycle " +
         counter + " are " + dsOnePredicted.count)
       logInfo("JOB_INFO: Number of Both Unknown mols predicted in cycle " +
-        counter + " are " + dsBothUnknown.count)  
+        counter + " are " + dsBothUnknown.count)
       logInfo("JOB_INFO: Number of Empty Unknown mols predicted in cycle " +
         counter + " are " + dsEmptyUnknown.count)
-      
 
       //Keeping all previous removed bad mols
       if (cumulativeZeroRemoved == null)
@@ -306,23 +344,22 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       eff = singletonCount.value / totalCount.value
       logInfo("JOB_INFO: Efficiency in cycle " + counter + " is " + eff)
-      
+
       dsInit.unpersist()
-      
+
       counter = counter + 1
       if (eff > 0.8)
         effCounter = effCounter + 1
       else
         effCounter = 0
-                
+
     } while (effCounter < 2 && !singleCycle)
     logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
-    
-    
+
     //Docking rest of the dsOne mols
     val dsDockOne = dsOnePredicted.subtract(poses).cache()
     logInfo("JOB_INFO: Number of mols in dsDockOne are " + dsDockOne.count)
-    
+
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
       poses = dsDockOne
