@@ -8,6 +8,10 @@ import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
 import se.uu.farmbio.vs.ConformersWithSignsAndScorePipeline
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.Row
+import java.nio.file.Paths
+import org.apache.commons.io.FilenameUtils
 
 /**
  * @author laeeq
@@ -19,6 +23,7 @@ object DockerWithML extends Logging {
     master: String = null,
     conformersFile: String = null,
     topPosesPath: String = null,
+    receptorFile: String = null,
     firstFile: String = null,
     secondFile: String = null,
     dsInitSize: Int = 100,
@@ -44,6 +49,10 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
+      arg[String]("<receptor-file>")
+        .required()
+        .text("path to input OEB receptor file")
+        .action((x, c) => c.copy(receptorFile = x))
       arg[String]("<top-poses-path>")
         .required()
         .text("path to top output poses")
@@ -117,7 +126,8 @@ object DockerWithML extends Logging {
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
 
     val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
-      .dockWithML(params.pdbCode,
+      .dockWithML(params.receptorFile,
+        params.pdbCode,
         params.dsInitSize,
         params.dsIncreSize,
         params.calibrationPercent,
@@ -153,6 +163,32 @@ object DockerWithML extends Logging {
     logInfo("JOB_INFO: Number of molecules matched are " + counter)
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
 
+    val r_name = FilenameUtils.removeExtension(Paths.get(params.receptorFile).getFileName.toString())
+    val r_name_Id_Score = mols2.map { mol => (r_name, PosePipeline.parseIdAndScore(mol)) }
+    .map{ case (r_name, idAndscore) => Row(r_name, idAndscore._1, idAndscore._2)}
+    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+    val schema =
+      StructType(
+        StructField("r_name", StringType, false) ::
+          StructField("l_id", StringType, false) ::
+          StructField("l_score", DoubleType, false) :: Nil)
+
+    val df = sqlContext.createDataFrame(r_name_Id_Score, schema)
+
+    val prop = new java.util.Properties
+    prop.setProperty("driver", "org.mariadb.jdbc.Driver")
+    prop.setProperty("user", "root")
+    prop.setProperty("password", "2264421_root")
+
+    //jdbc mysql url - destination database is named "data"
+    val url = "jdbc:mysql://localhost:3306/db_profile"
+
+    //destination database table 
+    val table = "LIGANDS"
+
+    //write data from spark dataframe to database
+    df.write.mode("append").jdbc(url, table, prop)
+    df.printSchema()
     sc.stop()
 
   }

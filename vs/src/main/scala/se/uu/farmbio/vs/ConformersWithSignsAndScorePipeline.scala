@@ -17,6 +17,7 @@ import se.uu.farmbio.cp.ICPClassifierModel
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
+    receptorPath: String,
     pdbCode: String,
     dsInitSize: Int,
     dsIncreSize: Int,
@@ -159,6 +160,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
     extends SBVSPipeline(rdd) with ConformersWithSignsAndScoreTransforms {
 
   override def dockWithML(
+    receptorPath: String,
     pdbCode: String,
     dsInitSize: Int,
     dsIncreSize: Int,
@@ -280,9 +282,9 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       val svm = new SVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
-      
-      ConformersWithSignsAndScorePipeline.insertMaster("/blah/blah/receptorxyz.oeb", icp, pdbCode)
-     
+
+      ConformersWithSignsAndScorePipeline.insertMaster(receptorPath, icp, pdbCode)
+
       lpDsTrain.unpersist()
       properTraining.unpersist()
 
