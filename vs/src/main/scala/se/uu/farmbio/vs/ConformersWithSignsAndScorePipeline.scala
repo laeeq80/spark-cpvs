@@ -1,19 +1,18 @@
 package se.uu.farmbio.vs
 
-import se.uu.farmbio.cp.ICP
-import se.uu.farmbio.cp.alg.SVM
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Logging
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
 import java.io.StringWriter
-import se.uu.farmbio.cp.alg.SVM
 import java.sql.DriverManager
 import java.nio.file.Paths
 import java.sql.PreparedStatement
 import org.apache.commons.io.FilenameUtils
-import se.uu.farmbio.cp.ICPClassifierModel
+import se.uu.it.cp
+import se.uu.it.cp.ICP
+import se.uu.it.cp.InductiveClassifier
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
@@ -29,6 +28,8 @@ trait ConformersWithSignsAndScoreTransforms {
     stratified: Boolean,
     confidence: Double): SBVSPipeline with PoseTransforms
 }
+
+
 
 private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
 
@@ -123,7 +124,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
 
   }
 
-  private def insertMaster(receptorPath: String, model: ICPClassifierModel[SVM], pdbCode: String) {
+  private def insertMaster(receptorPath: String, model:  InductiveClassifier[MLlibSVM, LabeledPoint], pdbCode: String) {
 
     //Getting filename from Path and trimming the extension
     val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
@@ -272,16 +273,15 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsAndScorePipeline.getLPRDD(sdfmol)
       }
-
+      
       //Step 8 Training
-      calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
-      val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain.cache, calibrationSizeDynamic, stratified)
-
+      //calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
+      val Array(properTraining, calibration) = lpDsTrain.randomSplit(Array(1-calibrationPercent, calibrationPercent), seed = 11L)
+      
       //Train ICP  
-      val svm = new SVM(properTraining.cache, numIterations)
+      val svm = new MLlibSVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
-      val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
+      val icp = ICP.trainClassifier(svm, nOfClasses = 2, calibration.collect)     
 
       ConformersWithSignsAndScorePipeline.insertMaster(receptorPath, icp, pdbCode)
 
@@ -290,7 +290,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       //Step 9 Prediction using our model
       val predictions = fvDsComplete.map {
-        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, confidence))
+        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData.toArray, confidence))
       }
 
       val dsZeroPredicted: RDD[(String)] = predictions
