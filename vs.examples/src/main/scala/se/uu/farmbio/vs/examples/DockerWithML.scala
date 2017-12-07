@@ -163,32 +163,46 @@ object DockerWithML extends Logging {
     logInfo("JOB_INFO: Number of molecules matched are " + counter)
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
 
+    //Reading receptor name from path
     val r_name = FilenameUtils.removeExtension(Paths.get(params.receptorFile).getFileName.toString())
-    val r_name_Id_Score = mols2.map { mol => (r_name, PosePipeline.parseIdAndScore(mol)) }
-    .map{ case (r_name, idAndscore) => Row(r_name, idAndscore._1, idAndscore._2)}
-    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
-    val schema =
+
+    //Getting parameters ready in Row format
+    val paramsAsRow = posesWithSigns.getMolecules
+      .map { mol =>
+        (r_name, PosePipeline.parseIdAndScore(mol))
+      }
+      .map {
+        case (r_name, idAndscore) =>
+          Row(r_name, params.pdbCode, idAndscore._1, idAndscore._2)
+      }
+      
+    //Creating sqlContext Using sparkContext  
+    val sqlContext2 = new org.apache.spark.sql.SQLContext(sc)
+    val schema2 =
       StructType(
         StructField("r_name", StringType, false) ::
+          StructField("r_pdbCode", StringType, false) ::
           StructField("l_id", StringType, false) ::
           StructField("l_score", DoubleType, false) :: Nil)
 
-    val df = sqlContext.createDataFrame(r_name_Id_Score, schema)
+    //Creating DataFrame using row parameters and schema      
+    val df2 = sqlContext2.createDataFrame(paramsAsRow, schema2)
 
     val prop = new java.util.Properties
     prop.setProperty("driver", "org.mariadb.jdbc.Driver")
     prop.setProperty("user", "root")
     prop.setProperty("password", "2264421_root")
 
-    //jdbc mysql url - destination database is named "data"
+    //jdbc mysql url - destination database is named "db_profile"
     val url = "jdbc:mysql://localhost:3306/db_profile"
 
     //destination database table 
-    val table = "LIGANDS"
+    val table = "DOCKED_LIGANDS"
 
     //write data from spark dataframe to database
-    df.write.mode("append").jdbc(url, table, prop)
-    df.printSchema()
+    df2.write.mode("append").jdbc(url, table, prop)
+    logInfo("JOB_INFO: Writing to DOCKED_LIGANDS")
+    df2.printSchema()
     sc.stop()
 
   }
