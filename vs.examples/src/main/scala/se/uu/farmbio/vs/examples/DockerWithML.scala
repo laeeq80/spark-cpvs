@@ -177,8 +177,8 @@ object DockerWithML extends Logging {
       }
       
     //Creating sqlContext Using sparkContext  
-    val sqlContext2 = new org.apache.spark.sql.SQLContext(sc)
-    val schema2 =
+    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+    val schema =
       StructType(
         StructField("r_name", StringType, false) ::
           StructField("r_pdbCode", StringType, false) ::
@@ -186,7 +186,7 @@ object DockerWithML extends Logging {
           StructField("l_score", DoubleType, false) :: Nil)
 
     //Creating DataFrame using row parameters and schema      
-    val df2 = sqlContext2.createDataFrame(paramsAsRow, schema2)
+    val df = sqlContext.createDataFrame(paramsAsRow, schema)
 
     val prop = new java.util.Properties
     prop.setProperty("driver", "org.mariadb.jdbc.Driver")
@@ -200,9 +200,9 @@ object DockerWithML extends Logging {
     val table = "DOCKED_LIGANDS"
 
     //write data from spark dataframe to database
-    df2.write.mode("append").jdbc(url, table, prop)
+    df.write.mode("append").jdbc(url, table, prop)
     logInfo("JOB_INFO: Writing to DOCKED_LIGANDS")
-    df2.printSchema()
+    df.printSchema()
     sc.stop()
 
   }

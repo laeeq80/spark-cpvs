@@ -6,8 +6,8 @@ import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
 import java.io.StringWriter
-import java.sql.DriverManager
 import java.nio.file.Paths
+import java.sql.DriverManager
 import java.sql.PreparedStatement
 import org.apache.commons.io.FilenameUtils
 import se.uu.it.cp
@@ -16,6 +16,11 @@ import se.uu.it.cp.InductiveClassifier
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.Row
 import org.apache.spark.SparkContext
+
+import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
+import java.io.ObjectOutputStream
+import java.io.ObjectInputStream
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
@@ -171,17 +176,46 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
   }
 
   private def insertModels(receptorPath: String, r_model: InductiveClassifier[MLlibSVM, LabeledPoint], r_pdbCode: String) {
+    /* Class.forName("org.mariadb.jdbc.Driver")
+  val jdbcUrl = s"jdbc:mysql://localhost:3306/db_test?user=root&password=2264421_root"
 
+    val dbConn = DriverManager.getConnection(jdbcUrl)
+    
+    val employee = new Employee(42, "AA", 9)
+    val baos = new ByteArrayOutputStream()
+    val oos = new ObjectOutputStream(baos)
+    oos.writeObject(employee)
+    
+    //Writing to Database
+    val employeeAsBytes = baos.toByteArray()
+    val pstmt =
+      dbConn.prepareStatement("INSERT INTO Employee (emp) VALUES(?)")
+      
+    val bais = new ByteArrayInputStream(employeeAsBytes)
+    pstmt.setBinaryStream(1, bais, employeeAsBytes.length)
+    pstmt.executeUpdate()
+    pstmt.close()
+    
+    */
+    
     //Getting filename from Path and trimming the extension
     val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
     println("JOB_INFO: The value of r_name is " + r_name)
 
     Class.forName("org.mariadb.jdbc.Driver")
     val jdbcUrl = s"jdbc:mysql://localhost:3306/db_profile?user=root&password=2264421_root"
-
+    
+    //Preparation object for writing
+    val baos = new ByteArrayOutputStream()
+    val oos = new ObjectOutputStream(baos)
+    oos.writeObject(r_model)
+    
+    val r_modelAsBytes = baos.toByteArray()
+    val bais = new ByteArrayInputStream(r_modelAsBytes)
+    
     val connection = DriverManager.getConnection(jdbcUrl)
     if (!(connection.isClosed())) {
-
+      //Writing to Database
       val sqlInsert: PreparedStatement = connection.prepareStatement("INSERT INTO MODELS(r_name, r_pdbCode, r_model) VALUES (?, ?, ?)")
 
       println("JOB_INFO: Start Serializing")
@@ -189,7 +223,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
       // set input parameters
       sqlInsert.setString(1, r_name)
       sqlInsert.setString(2, r_pdbCode)
-      sqlInsert.setObject(3, r_model)
+      sqlInsert.setBinaryStream(3, bais, r_modelAsBytes.length)
       sqlInsert.executeUpdate()
 
       sqlInsert.close()

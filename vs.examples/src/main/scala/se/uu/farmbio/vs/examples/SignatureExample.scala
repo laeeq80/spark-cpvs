@@ -3,9 +3,9 @@ package se.uu.farmbio.vs.examples
 import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
+import java.io.PrintWriter
 
 object SignatureExample extends Logging {
 
@@ -53,7 +53,11 @@ object SignatureExample extends Logging {
       .readConformerFile(params.conformersFile)
       .generateSignatures()
       .getMolecules
-      .saveAsTextFile(params.signatureOutputFile)
+      .collect()
+
+    val pw = new PrintWriter(params.signatureOutputFile)
+    signatures.foreach(pw.println(_))
+    pw.close
 
     sc.stop()
 
