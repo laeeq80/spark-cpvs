@@ -176,28 +176,6 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
   }
 
   private def insertModels(receptorPath: String, r_model: InductiveClassifier[MLlibSVM, LabeledPoint], r_pdbCode: String) {
-    /* Class.forName("org.mariadb.jdbc.Driver")
-  val jdbcUrl = s"jdbc:mysql://localhost:3306/db_test?user=root&password=2264421_root"
-
-    val dbConn = DriverManager.getConnection(jdbcUrl)
-    
-    val employee = new Employee(42, "AA", 9)
-    val baos = new ByteArrayOutputStream()
-    val oos = new ObjectOutputStream(baos)
-    oos.writeObject(employee)
-    
-    //Writing to Database
-    val employeeAsBytes = baos.toByteArray()
-    val pstmt =
-      dbConn.prepareStatement("INSERT INTO Employee (emp) VALUES(?)")
-      
-    val bais = new ByteArrayInputStream(employeeAsBytes)
-    pstmt.setBinaryStream(1, bais, employeeAsBytes.length)
-    pstmt.executeUpdate()
-    pstmt.close()
-    
-    */
-    
     //Getting filename from Path and trimming the extension
     val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
     println("JOB_INFO: The value of r_name is " + r_name)
