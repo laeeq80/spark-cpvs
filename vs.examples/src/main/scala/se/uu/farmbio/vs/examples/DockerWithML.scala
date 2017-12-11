@@ -165,7 +165,8 @@ object DockerWithML extends Logging {
 
     //Reading receptor name from path
     val r_name = FilenameUtils.removeExtension(Paths.get(params.receptorFile).getFileName.toString())
-
+    
+    //Saving All molecule scores to Database
     //Getting parameters ready in Row format
     val paramsAsRow = posesWithSigns.getMolecules
       .map { mol =>

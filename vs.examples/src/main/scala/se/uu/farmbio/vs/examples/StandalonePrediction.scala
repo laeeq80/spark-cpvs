@@ -7,9 +7,7 @@ import java.io.ObjectInputStream
 import java.io.PrintWriter
 import java.sql.DriverManager
 
-import org.apache.spark.Logging
-import org.apache.spark.mllib.linalg.Vector
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.openscience.cdk.DefaultChemObjectBuilder
 import org.openscience.cdk.io.iterator.IteratingSDFReader
@@ -22,7 +20,7 @@ import se.uu.it.cp.InductiveClassifier
  * @author laeeq
  */
 
-object StandalonePrediction extends Logging {
+object StandalonePrediction{
 
   case class Arglist(
     conformersFile: String = null,
