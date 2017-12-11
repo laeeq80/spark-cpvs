@@ -38,7 +38,26 @@ trait ConformersWithSignsAndScoreTransforms {
 }
 
 private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
+  
+  private[vs] def parseIdAndSignature(poseWithSigns: String) = {
+    var signature: String = null
+    val id: String = PosePipeline.parseId(poseWithSigns)
+    //Sometimes OEChem produce molecules with empty score or malformed molecules
+    //We use try catch block for those exceptions
 
+    var res: String = null
+    val it = SBVSPipeline.CDKInit(poseWithSigns)
+    if (it.hasNext()) {
+      val mol = it.next
+      res = mol.getProperty("Signature")
+
+    }
+    signature = res
+
+    (id, signature)
+
+  }
+  
   def getLPRDD_Score(poses: String) = {
     val it = SBVSPipeline.CDKInit(poses)
 

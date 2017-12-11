@@ -6,6 +6,7 @@ import org.apache.spark.SparkContext
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import java.io.PrintWriter
+import se.uu.farmbio.vs.ConformersWithSignsAndScorePipeline
 
 object SignatureExample extends Logging {
 
@@ -51,12 +52,14 @@ object SignatureExample extends Logging {
     val sc = new SparkContext(conf)
     val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-      .generateSignatures()
-      .getMolecules
-      .collect()
+      .generateSignatures().getMolecules
+    //Mapping of ID->Signatures  
+    val idAndSignatures = signatures.map {
+      posesWithSigns => ConformersWithSignsAndScorePipeline.parseIdAndSignature(posesWithSigns)
+    }.collect()
 
     val pw = new PrintWriter(params.signatureOutputFile)
-    signatures.foreach(pw.println(_))
+    idAndSignatures.foreach(pw.println(_))
     pw.close
 
     sc.stop()

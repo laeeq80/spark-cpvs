@@ -7,7 +7,7 @@ import java.io.ObjectInputStream
 import java.io.PrintWriter
 import java.sql.DriverManager
 
-import org.apache.spark.mllib.linalg.{Vector, Vectors}
+import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.openscience.cdk.DefaultChemObjectBuilder
 import org.openscience.cdk.io.iterator.IteratingSDFReader
@@ -20,7 +20,7 @@ import se.uu.it.cp.InductiveClassifier
  * @author laeeq
  */
 
-object StandalonePrediction{
+object StandalonePrediction {
 
   case class Arglist(
     conformersFile: String = null,
@@ -74,12 +74,12 @@ object StandalonePrediction{
   }
 
   def readModel() = {
-    //Reading Pre-trained model from Database
+    //Connection Initialization
     Class.forName("org.mariadb.jdbc.Driver")
     val jdbcUrl = s"jdbc:mysql://localhost:3306/db_profile?user=root&password=2264421_root"
-
     val connection = DriverManager.getConnection(jdbcUrl)
 
+    //Reading Pre-trained model from Database
     var model: InductiveClassifier[MLlibSVM, LabeledPoint] = null
     if (!(connection.isClosed())) {
 
@@ -88,9 +88,9 @@ object StandalonePrediction{
       rs.next()
 
       val modelStream = rs.getObject("r_model").asInstanceOf[Array[Byte]]
-      val baip = new ByteArrayInputStream(modelStream)
-      val ois = new ObjectInputStream(baip)
-      model = ois.readObject().asInstanceOf[InductiveClassifier[MLlibSVM, LabeledPoint]]
+      val modelBaip = new ByteArrayInputStream(modelStream)
+      val modelOis = new ObjectInputStream(modelBaip)
+      model = modelOis.readObject().asInstanceOf[InductiveClassifier[MLlibSVM, LabeledPoint]]
 
       rs.close
       sqlRead.close
