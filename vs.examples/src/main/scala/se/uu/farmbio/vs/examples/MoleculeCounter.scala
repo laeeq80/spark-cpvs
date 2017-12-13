@@ -8,7 +8,6 @@ import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import java.io.PrintWriter
 
-
 /**
  * @author laeeq
  */

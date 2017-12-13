@@ -1,26 +1,27 @@
 package se.uu.farmbio.vs
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.Logging
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.mllib.linalg.{ Vector, Vectors }
-import org.openscience.cdk.io.SDFWriter
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.ObjectOutputStream
 import java.io.StringWriter
 import java.nio.file.Paths
 import java.sql.DriverManager
 import java.sql.PreparedStatement
+
 import org.apache.commons.io.FilenameUtils
+import org.apache.spark.SparkContext
+import org.apache.spark.mllib.linalg.Vector
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
+import org.openscience.cdk.io.SDFWriter
+
 import se.uu.it.cp
 import se.uu.it.cp.ICP
 import se.uu.it.cp.InductiveClassifier
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.Row
-import org.apache.spark.SparkContext
 
-import java.io.ByteArrayOutputStream
-import java.io.ByteArrayInputStream
-import java.io.ObjectOutputStream
-import java.io.ObjectInputStream
 
 trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
@@ -38,7 +39,7 @@ trait ConformersWithSignsAndScoreTransforms {
 }
 
 private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
-  
+
   private[vs] def parseIdAndSignature(poseWithSigns: String) = {
     var signature: String = null
     val id: String = PosePipeline.parseId(poseWithSigns)
@@ -57,7 +58,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
     (id, signature)
 
   }
-  
+
   def getLPRDD_Score(poses: String) = {
     val it = SBVSPipeline.CDKInit(poses)
 
@@ -152,7 +153,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
   private def insertPredictions(receptorPath: String, r_pdbCode: String, predictions: RDD[(String, Set[Double])], sc: SparkContext) {
     //Reading receptor name from path
     val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
-    
+
     //Getting parameters ready in Row format
     val paramsAsRow = predictions.map {
       case (sdfmol, predSet) =>
@@ -174,7 +175,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
           StructField("r_pdbCode", StringType, false) ::
           StructField("l_id", StringType, false) ::
           StructField("l_prediction", StringType, false) :: Nil)
-          
+
     //Creating DataFrame using row parameters and schema
     val df = sqlContext.createDataFrame(paramsAsRow, schema)
 
@@ -201,15 +202,15 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
 
     Class.forName("org.mariadb.jdbc.Driver")
     val jdbcUrl = s"jdbc:mysql://localhost:3306/db_profile?user=root&password=2264421_root"
-    
+
     //Preparation object for writing
     val baos = new ByteArrayOutputStream()
     val oos = new ObjectOutputStream(baos)
     oos.writeObject(r_model)
-    
+
     val r_modelAsBytes = baos.toByteArray()
     val bais = new ByteArrayInputStream(r_modelAsBytes)
-    
+
     val connection = DriverManager.getConnection(jdbcUrl)
     if (!(connection.isClosed())) {
       //Writing to Database
@@ -236,7 +237,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
 
 private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[String])
     extends SBVSPipeline(rdd) with ConformersWithSignsAndScoreTransforms {
-
+  
   override def dockWithML(
     receptorPath: String,
     pdbCode: String,

@@ -48,7 +48,7 @@ private[vs] class SBVSPipeline(protected val rdd: RDD[String]) extends Logging {
   protected val defaultParallelism = sc.getConf.get("spark.default.parallelism", "2").toInt
 
   def getMolecules = rdd
-
+  
   def readConformerRDDs(conformers: Seq[RDD[String]]): SBVSPipeline with ConformerTransforms = {
     new ConformerPipeline(sc.union(conformers))
   }

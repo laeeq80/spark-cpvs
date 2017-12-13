@@ -1,28 +1,26 @@
 package se.uu.farmbio.vs
 
-import se.uu.farmbio.sg.SGUtils
-
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.nio.file.Paths
-
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.io.Source
-
+import org.apache.spark.Logging
+import org.apache.spark.SparkContext
 import org.apache.spark.SparkFiles
 import org.apache.spark.rdd.RDD
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.SparkContext._
-import org.apache.spark.SparkContext
-import org.apache.spark.Logging
-
-import org.openscience.cdk.io.SDFWriter
 import org.openscience.cdk.interfaces.IAtomContainer
+import org.openscience.cdk.io.SDFWriter
+import se.uu.farmbio.sg.SGUtils
+import se.uu.farmbio.sg.types.Sig2ID_Mapping
+import java.io.File
+import org.apache.commons.io.FileUtils
 
 trait ConformerTransforms {
   def dock(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean = false): SBVSPipeline with PoseTransforms
   def repartition: SBVSPipeline with ConformerTransforms
-  def generateSignatures(): SBVSPipeline with ConformersWithSignsAndScoreTransforms
+  def generateSignatures(sig2IdPath: String): SBVSPipeline with ConformersWithSignsAndScoreTransforms
+  def generateNewSignatures(oldSig2IdMap: RDD[Sig2ID_Mapping]): RDD[String]
 }
 
 object ConformerPipeline extends Logging {
@@ -116,7 +114,7 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
     new PosePipeline(res)
   }
 
-  override def generateSignatures = {
+  override def generateSignatures(sig2IdPath: String) = {
     //Split molecules, so there is only one molecule per RDD record
     val splitRDD = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
     //Convert to IAtomContainer, fake labels are added
@@ -130,7 +128,11 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
           }
     }
     //Convert to labeled point 
-    val (lps, _) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithFakeLabels, null, 1, 3)
+    val (lps, sig2IdMap) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithFakeLabels, null, 1, 3)
+    
+    //save sig2IdMap
+    SGUtils.saveSign2IDMapping(sig2IdMap, sig2IdPath)
+
     //Throw away the labels and only keep the features 
     val molAndSparseVector = lps.map {
       case (mol, lp) => (mol, lp.features.toSparse.toString())
@@ -140,6 +142,35 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
       case (mol, sign) => ConformerPipeline.writeSignature(mol, sign)
     }
     new ConformersWithSignsAndScorePipeline(res)
+  }
+
+  override def generateNewSignatures(oldSig2IdMap: RDD[Sig2ID_Mapping]) : RDD[String] = {
+
+    //Split molecules, so there is only one molecule per RDD record
+    val splitRDD = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
+    //Convert to IAtomContainer, fake labels are added
+    val molsWithFakeLabels = splitRDD.flatMap {
+      case (sdfmol) =>
+        ConformerPipeline.sdfStringToIAtomContainer(sdfmol)
+          .map {
+            case (mol) =>
+              //Make sg library happy
+              (sdfmol, 0.0, mol) // sdfmol is a carry, 0.0 is fake label and mol is the IAtomContainer
+          }
+    }
+    //Convert to labeled point 
+    //val (lps, newSig2IdMap) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithFakeLabels, oldSig2IdMap, 1, 3)
+    val lps = SGUtils.atoms2LP_carryData(molsWithFakeLabels, oldSig2IdMap, 1, 3)
+
+    //Throw away the labels and only keep the features 
+    val molAndSparseVector = lps.map {
+      case (mol, lp) => (mol, lp.features.toSparse.toString())
+    }
+    //Write Signature in the SDF String
+    val res = molAndSparseVector.map {
+      case (mol, sign) => ConformerPipeline.writeSignature(mol, sign)
+    }
+    res
   }
 
   override def repartition() = {
