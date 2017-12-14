@@ -11,7 +11,6 @@ import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.openscience.cdk.DefaultChemObjectBuilder
 import org.openscience.cdk.io.iterator.IteratingSDFReader
-
 import scopt.OptionParser
 import se.uu.farmbio.vs.MLlibSVM
 import se.uu.it.cp.InductiveClassifier
@@ -24,7 +23,9 @@ import org.apache.spark.SparkContext
 import scopt.OptionParser
 import se.uu.farmbio.vs.SBVSPipeline
 import java.io.PrintWriter
-
+import org.openscience.cdk.io.MDLReader
+import org.openscience.cdk.io.MDLV2000Reader
+import java.io.Reader
 /**
  * @author laeeq
  */
@@ -87,19 +88,24 @@ object StandalonePrediction {
     //Generate Signature of New Molecule
     val signatures = sdfFile.generateNewSignatures(old_sig2ID)
     .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
-    .collect()
+    .collect().toString()
     
+    
+    
+    val ins = this.getClass().getClassLoader().getResourceAsStream(signatures);
+    //val reader1 = new MDLV2000Reader(ins);
+    /*
     val pw1 = new PrintWriter("data/signatures.sdf")
     signatures.foreach(pw1.println(_))
     pw1.close
-
+*/
     //Creating Input Stream for IteratingSDFReader 
     //val reader = signatures.map { case signs =>  SBVSPipeline.CDKInit(signs)}
     //val ins = this.getClass().getClassLoader().getResourceAsStream(signatures)
      
     //Creating IteratingSDFReader for reading molecules
     val reader = new IteratingSDFReader(
-      new FileInputStream("data/signatures.sdf"), DefaultChemObjectBuilder.getInstance())
+      ins, DefaultChemObjectBuilder.getInstance())
 
     //Reading Signatures and converting them to vector 
     var res = Seq[(Vector)]()

@@ -130,8 +130,10 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
     //Convert to labeled point 
     val (lps, sig2IdMap) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithFakeLabels, null, 1, 3)
     
+    val sig2IdMapLocal = sig2IdMap.collect()
+    
     //save sig2IdMap
-    SGUtils.saveSign2IDMapping(sig2IdMap, sig2IdPath)
+    SGUtils_Serial.saveSig2IdMap(sig2IdPath, sig2IdMapLocal)
 
     //Throw away the labels and only keep the features 
     val molAndSparseVector = lps.map {
@@ -159,7 +161,6 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
           }
     }
     //Convert to labeled point 
-    //val (lps, newSig2IdMap) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithFakeLabels, oldSig2IdMap, 1, 3)
     val lps = SGUtils.atoms2LP_carryData(molsWithFakeLabels, oldSig2IdMap, 1, 3)
 
     //Throw away the labels and only keep the features 
