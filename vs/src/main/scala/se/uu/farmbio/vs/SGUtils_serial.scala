@@ -36,7 +36,7 @@ private[vs] object SGUtils_Serial {
     sig2ID
   }
  
-  //This is what I need or SGUtils.atoms2LP_carryData (non spark take array rather than RDDs)
+  //This is what we need or SGUtils.atoms2LP_carryData (non spark take array rather than RDDs)
   def generateNewSignatures(sdfFile: File, oldSig2IdMap : Array[Sig2ID_Mapping], h_start: Int, h_stop: Int)  = {
   
     //Returns Array[(mol: String, lps: LabeledPoint)]
