@@ -52,7 +52,13 @@ object ConformerPipeline extends Logging {
 
   }
 
-  private[vs] def getDockingRDD(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean, sc: SparkContext, rdd: RDD[String]) = {
+  private[vs] def getDockingRDD(
+      receptorPath: String, 
+      method: Int, 
+      resolution: Int, 
+      dockTimePerMol: Boolean, 
+      sc: SparkContext, 
+      rdd: RDD[String]) = {
     //Use local CPP if DOCKING_CPP is set
     val dockingstdPath = if (System.getenv("DOCKING_CPP") != null) {
       logInfo("using local dockingstd: " + System.getenv("DOCKING_CPP"))
@@ -130,7 +136,7 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
     //Convert to labeled point 
     val (lps, sig2IdMap) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithFakeLabels, null, 1, 3)
     
-    val sig2IdMapLocal = sig2IdMap.collect()
+    val sig2IdMapLocal = sig2IdMap.collect
     
     //save sig2IdMap
     SGUtils_Serial.saveSig2IdMap(sig2IdPath, sig2IdMapLocal)

@@ -202,7 +202,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
 
     Class.forName("org.mariadb.jdbc.Driver")
     val jdbcUrl = s"jdbc:mysql://localhost:3306/db_profile?user=root&password=2264421_root"
-
+    
     //Preparation object for writing
     val baos = new ByteArrayOutputStream()
     val oos = new ObjectOutputStream(baos)
@@ -347,7 +347,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       logInfo("JOB_INFO: Zero Labeled Mols in Training set in cycle " + counter + " are " + dsBadInTrainingSet.count)
       logInfo("JOB_INFO: One Labeled Mols in Training set in cycle " + counter + " are " + dsGoodInTrainingSet.count)
 
-      //Converting SDF training set to LabeledPoint(label+sign) required for conformal prediction
+      //Converting SDF training set to LabeledPoint(label+features) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
         sdfmol => ConformersWithSignsAndScorePipeline.getLPRDD(sdfmol)
       }
@@ -360,7 +360,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       val svm = new MLlibSVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, nOfClasses = 2, calibration.collect)
-
+        
       ConformersWithSignsAndScorePipeline.insertModels(receptorPath, icp, pdbCode)
 
       lpDsTrain.unpersist()

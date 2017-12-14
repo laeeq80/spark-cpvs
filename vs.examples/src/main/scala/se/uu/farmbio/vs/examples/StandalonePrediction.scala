@@ -26,6 +26,7 @@ import java.io.PrintWriter
 import org.openscience.cdk.io.MDLReader
 import org.openscience.cdk.io.MDLV2000Reader
 import java.io.Reader
+import se.uu.farmbio.vs.SGUtils_Serial
 /**
  * @author laeeq
  */
@@ -68,48 +69,23 @@ object StandalonePrediction {
   }
 
   def run(params: Arglist) {
-
-    //Init Spark
-    val conf = new SparkConf()
-      .setAppName("SignatureExample")
-
-    if (params.master != null) {
-      conf.setMaster(params.master)
-    }
-    val sc = new SparkContext(conf)
-
-    //Reading new molecules
-    val sdfFile = new SBVSPipeline(sc)
-      .readConformerFile(params.conformersFile)
+    //New molecules
+    val sdfFile = new File(params.conformersFile);
 
     //Loading old_sig2ID Mapping
-    val old_sig2ID = SGUtils.loadSign2IDMapping(sc, params.sig2IdPath)
+    val old_sig2ID = SGUtils_Serial.loadSig2IdMap(params.sig2IdPath)
 
     //Generate Signature of New Molecule
-    val signatures = sdfFile.generateNewSignatures(old_sig2ID)
-    .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
-    .collect().toString()
-    
-    
-    
-    val ins = this.getClass().getClassLoader().getResourceAsStream(signatures);
-    //val reader1 = new MDLV2000Reader(ins);
-    /*
-    val pw1 = new PrintWriter("data/signatures.sdf")
-    signatures.foreach(pw1.println(_))
-    pw1.close
-*/
-    //Creating Input Stream for IteratingSDFReader 
-    //val reader = signatures.map { case signs =>  SBVSPipeline.CDKInit(signs)}
-    //val ins = this.getClass().getClassLoader().getResourceAsStream(signatures)
-     
+    //USE STAFFAN NEW IMPLMENTATION
+
     //Creating IteratingSDFReader for reading molecules
+    //CHANGE sdfFile to what we get from STAFFAN NEW IMPLEMENTATION
     val reader = new IteratingSDFReader(
-      ins, DefaultChemObjectBuilder.getInstance())
+      new FileInputStream(sdfFile), DefaultChemObjectBuilder.getInstance())
 
     //Reading Signatures and converting them to vector 
     var res = Seq[(Vector)]()
-    
+
     while (reader.hasNext()) {
       val mol = reader.next()
       val Vector = Vectors.parse(mol.getProperty("Signature"))
