@@ -85,7 +85,9 @@ object StandalonePrediction {
     val old_sig2ID = SGUtils.loadSign2IDMapping(sc, params.sig2IdPath)
 
     //Generate Signature of New Molecule
-    val signatures = sdfFile.generateNewSignatures(old_sig2ID).collect()
+    val signatures = sdfFile.generateNewSignatures(old_sig2ID)
+    .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
+    .collect()
     
     val pw1 = new PrintWriter("data/signatures.sdf")
     signatures.foreach(pw1.println(_))
@@ -94,10 +96,10 @@ object StandalonePrediction {
     //Creating Input Stream for IteratingSDFReader 
     //val reader = signatures.map { case signs =>  SBVSPipeline.CDKInit(signs)}
     //val ins = this.getClass().getClassLoader().getResourceAsStream(signatures)
-    
+     
     //Creating IteratingSDFReader for reading molecules
     val reader = new IteratingSDFReader(
-      new FileInputStream("data/1000MolsWithSigns.sdf"), DefaultChemObjectBuilder.getInstance())
+      new FileInputStream("data/signatures.sdf"), DefaultChemObjectBuilder.getInstance())
 
     //Reading Signatures and converting them to vector 
     var res = Seq[(Vector)]()

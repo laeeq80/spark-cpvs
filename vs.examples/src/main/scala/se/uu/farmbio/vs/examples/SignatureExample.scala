@@ -52,7 +52,9 @@ object SignatureExample extends Logging {
     val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
       .generateSignatures("data/sig2IdMap")
-      .getMolecules.collect()
+      .getMolecules
+      .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
+      .collect()
 
     val pw = new PrintWriter(params.signatureOutputFile)
     signatures.foreach(pw.println(_))
