@@ -1,14 +1,15 @@
 package se.uu.farmbio.vs
 
-import java.io.BufferedWriter
 import java.io.File
-import java.io.FileWriter
-import java.lang.Long
-import scala.io.Source
-import se.uu.farmbio.sg.types.Sig2ID_Mapping
-import org.apache.spark.mllib.linalg.Vector
 import java.io.PrintWriter
-import org.apache.spark.mllib.regression.LabeledPoint
+import java.lang.Long
+
+import scala.io.Source
+
+import org.apache.spark.mllib.linalg.Vector
+
+import se.uu.farmbio.sg.types.Sig2ID_Mapping
+import scala.collection.immutable.ListMap
 
 
 trait SGUtils_SerialTrait {
@@ -43,6 +44,59 @@ private[vs] object SGUtils_Serial {
   
   }
   
+  def atoms2LP_carryData[T: ClassTag](mols: Array[(T, IAtomContainer)],
+      signatureUniverse: Map[String, Long],
+      h_start: Int, 
+      h_stop: Int): Array[(T, Vector)] = {
+    
+    mols.map{case((data: T, mol: IAtomContainer)) =>
+      (data, atom2LP(mol, signatureUniverse, h_start, h_stop))};
+  }
+  
+  def atom2LP(mol: IAtomContainer, // The molecule to create signatures of
+      signatureUniverse: Map[String, Long], // Signature-> "Feature ID"
+      h_start: Int,
+      h_stop: Int): Vector = {
+    try {
+
+				// Map is [Feature ID, #Occurrences]
+				var feature_map = Map.empty[Long, Int];
+				val h_stop_new = Math.min(molecule.getAtomCount - 1, h_stop); //In case a too big h_stop is set
+
+				for (atom <- molecule.atoms()) {
+					for (height <- h_start to h_stop_new) {
+
+						val atomSign = new AtomSignature(molecule.getAtomNumber(atom), height, molecule);
+						val canonicalSign = atomSign.toCanonicalString();
+						val signature_id = signatureUniverse.getOrElse(canonicalSign, -1);
+						if (signature_id == -1)
+						  continue; // if not part of training model - skip signature
+
+						// Check if that signature has been found before for this molecule, update the quantity in such case
+						val quantity = feature_map.getOrElse(signature_id, -1);
+
+						if (quantity == -1) {
+							feature_map += (signature_id -> 1);
+						} else {
+							feature_map += (signature_id -> (quantity + 1));
+						}
+					}
+				}
+				// Convert feature map into (sparse) Vector
+				val sortedFeatures = ListMap(feature_map.toSeq.sortBy(_._1):_*);
+				var vectorIds = Array.empty[Long];
+				var vectorOccurrences = Array.empty[Int];
+				for (feature_id <- sortedFeatures.keys) {
+				  vectorIds = vectorIds ++ feature_id;
+				  vectorOccurrences = vectorOccurrences ++ feature_map.get(feature_id);
+				}
+				return Vectors.sparse(vectorIds.length, vectorIds, vectorOccurrences);
+				
+			} 
+			catch {
+			  case ex : Throwable => throw new SignatureGenException("Unknown exception occured (in 'atom2SigRecord'), exception was: " + ex);
+			}
+  }
   
 }
 
