@@ -20,7 +20,6 @@ trait ConformerTransforms {
   def dock(receptorPath: String, method: Int, resolution: Int, dockTimePerMol: Boolean = false): SBVSPipeline with PoseTransforms
   def repartition: SBVSPipeline with ConformerTransforms
   def generateSignatures(sig2IdPath: String): SBVSPipeline with ConformersWithSignsAndScoreTransforms
-  def generateNewSignatures(oldSig2IdMap: RDD[Sig2ID_Mapping]): RDD[String]
 }
 
 object ConformerPipeline extends Logging {
@@ -53,12 +52,12 @@ object ConformerPipeline extends Logging {
   }
 
   private[vs] def getDockingRDD(
-      receptorPath: String, 
-      method: Int, 
-      resolution: Int, 
-      dockTimePerMol: Boolean, 
-      sc: SparkContext, 
-      rdd: RDD[String]) = {
+    receptorPath: String,
+    method: Int,
+    resolution: Int,
+    dockTimePerMol: Boolean,
+    sc: SparkContext,
+    rdd: RDD[String]) = {
     //Use local CPP if DOCKING_CPP is set
     val dockingstdPath = if (System.getenv("DOCKING_CPP") != null) {
       logInfo("using local dockingstd: " + System.getenv("DOCKING_CPP"))
@@ -135,9 +134,9 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
     }
     //Convert to labeled point 
     val (lps, sig2IdMap) = SGUtils.atoms2LP_UpdateSignMapCarryData(molsWithFakeLabels, null, 1, 3)
-    
+
     val sig2IdMapLocal = sig2IdMap.collect
-    
+
     //save sig2IdMap
     SGUtils_Serial.saveSig2IdMap(sig2IdPath, sig2IdMapLocal)
 
@@ -150,34 +149,6 @@ private[vs] class ConformerPipeline(override val rdd: RDD[String])
       case (mol, sign) => ConformerPipeline.writeSignature(mol, sign)
     }
     new ConformersWithSignsAndScorePipeline(res)
-  }
-
-  override def generateNewSignatures(oldSig2IdMap: RDD[Sig2ID_Mapping]) : RDD[String] = {
-
-    //Split molecules, so there is only one molecule per RDD record
-    val splitRDD = rdd.flatMap(SBVSPipeline.splitSDFmolecules)
-    //Convert to IAtomContainer, fake labels are added
-    val molsWithFakeLabels = splitRDD.flatMap {
-      case (sdfmol) =>
-        ConformerPipeline.sdfStringToIAtomContainer(sdfmol)
-          .map {
-            case (mol) =>
-              //Make sg library happy
-              (sdfmol, 0.0, mol) // sdfmol is a carry, 0.0 is fake label and mol is the IAtomContainer
-          }
-    }
-    //Convert to labeled point 
-    val lps = SGUtils.atoms2LP_carryData(molsWithFakeLabels, oldSig2IdMap, 1, 3)
-
-    //Throw away the labels and only keep the features 
-    val molAndSparseVector = lps.map {
-      case (mol, lp) => (mol, lp.features.toSparse.toString())
-    }
-    //Write Signature in the SDF String
-    val res = molAndSparseVector.map {
-      case (mol, sign) => ConformerPipeline.writeSignature(mol, sign)
-    }
-    res
   }
 
   override def repartition() = {
