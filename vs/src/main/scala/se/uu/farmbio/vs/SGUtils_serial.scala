@@ -6,10 +6,15 @@ import java.lang.Long
 
 import scala.io.Source
 
-import org.apache.spark.mllib.linalg.Vector
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
 
 import se.uu.farmbio.sg.types.Sig2ID_Mapping
+
+import scala.reflect.ClassTag
 import scala.collection.immutable.ListMap
+import org.openscience.cdk.interfaces.IAtomContainer
+import org.openscience.cdk.signature.AtomSignature
+import se.uu.farmbio.sg.exceptions._
 
 
 trait SGUtils_SerialTrait {
@@ -53,7 +58,7 @@ private[vs] object SGUtils_Serial {
       (data, atom2LP(mol, signatureUniverse, h_start, h_stop))};
   }
   
-  def atom2LP(mol: IAtomContainer, // The molecule to create signatures of
+  def atom2LP(molecule: IAtomContainer, // The molecule to create signatures of
       signatureUniverse: Map[String, Long], // Signature-> "Feature ID"
       h_start: Int,
       h_stop: Int): Vector = {
@@ -63,20 +68,20 @@ private[vs] object SGUtils_Serial {
 				var feature_map = Map.empty[Long, Int];
 				val h_stop_new = Math.min(molecule.getAtomCount - 1, h_stop); //In case a too big h_stop is set
 
-				for (atom <- molecule.atoms()) {
+				for (atom <- molecule.atoms()) {   //ERROR : value foreach is not a member of Iterable[org.openscience.cdk.interfaces.IAtom]
 					for (height <- h_start to h_stop_new) {
 
 						val atomSign = new AtomSignature(molecule.getAtomNumber(atom), height, molecule);
 						val canonicalSign = atomSign.toCanonicalString();
 						val signature_id = signatureUniverse.getOrElse(canonicalSign, -1);
 						if (signature_id == -1)
-						  continue; // if not part of training model - skip signature
+						  continue; // if not part of training model - skip signature // ERROR : There is no continue in scala
 
 						// Check if that signature has been found before for this molecule, update the quantity in such case
-						val quantity = feature_map.getOrElse(signature_id, -1);
+						val quantity = feature_map.getOrElse(signature_id, -1);  //ERROR : type mismatch; found : Any required: Long
 
 						if (quantity == -1) {
-							feature_map += (signature_id -> 1);
+							feature_map += (signature_id -> 1);  //ERROR : type mismatch; found : (Any, Int) required: (Long, Int)
 						} else {
 							feature_map += (signature_id -> (quantity + 1));
 						}
@@ -87,11 +92,12 @@ private[vs] object SGUtils_Serial {
 				var vectorIds = Array.empty[Long];
 				var vectorOccurrences = Array.empty[Int];
 				for (feature_id <- sortedFeatures.keys) {
-				  vectorIds = vectorIds ++ feature_id;
+				  vectorIds = vectorIds ++ feature_id;   //ERROR : type mismatch; found : Long required: scala.collection.GenTraversableOnce[?]
 				  vectorOccurrences = vectorOccurrences ++ feature_map.get(feature_id);
 				}
-				return Vectors.sparse(vectorIds.length, vectorIds, vectorOccurrences);
-				
+				return Vectors.sparse(vectorIds.length, vectorIds, vectorOccurrences);  // ERROR : type mismatch; found : Array[Long] required: Array[Int] for vectorIds
+        //ERROR : type mismatch; found : Array[Int] required: Array[Double] for vectorOccurrences
+    
 			} 
 			catch {
 			  case ex : Throwable => throw new SignatureGenException("Unknown exception occured (in 'atom2SigRecord'), exception was: " + ex);
