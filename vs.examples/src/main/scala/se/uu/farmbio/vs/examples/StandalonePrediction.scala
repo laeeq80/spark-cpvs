@@ -6,28 +6,16 @@ import java.io.FileInputStream
 import java.io.ObjectInputStream
 import java.io.PrintWriter
 import java.sql.DriverManager
-import org.apache.spark.mllib.linalg.Vector
-import org.apache.spark.mllib.linalg.Vectors
+
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.openscience.cdk.DefaultChemObjectBuilder
+import org.openscience.cdk.interfaces.IAtomContainer
 import org.openscience.cdk.io.iterator.IteratingSDFReader
+
 import scopt.OptionParser
 import se.uu.farmbio.vs.MLlibSVM
-import se.uu.it.cp.InductiveClassifier
-import java.lang.Long
-import se.uu.farmbio.sg.types.Sig2ID_Mapping
-import se.uu.farmbio.sg.SGUtils
-import org.apache.spark.Logging
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkContext
-import scopt.OptionParser
-import se.uu.farmbio.vs.SBVSPipeline
-import java.io.PrintWriter
-import org.openscience.cdk.io.MDLReader
-import org.openscience.cdk.io.MDLV2000Reader
-import java.io.Reader
 import se.uu.farmbio.vs.SGUtils_Serial
-import org.openscience.cdk.interfaces.IAtomContainer
+import se.uu.it.cp.InductiveClassifier
 
 /**
  * @author laeeq
@@ -86,8 +74,10 @@ object StandalonePrediction {
       res = res ++ Seq(mol)
     }
     
+    //Array of IAtomContainers
     val IAtomArray = res.toArray
     
+    //Unit sent as carry, later we can add any type required
     val IAtomArrayWithFakeCarry = IAtomArray.map { case x => (Unit, x) }
       
     //Generate Signature(in vector form) of New Molecule(s)
