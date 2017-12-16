@@ -3,11 +3,10 @@ package se.uu.farmbio.vs.examples
 import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
+
 import scopt.OptionParser
-import se.uu.farmbio.vs.SBVSPipeline
 import se.uu.farmbio.vs.PosePipeline
-import java.io.PrintWriter
+import se.uu.farmbio.vs.SBVSPipeline
 
 
 /**

@@ -1,12 +1,14 @@
 package se.uu.farmbio.vs
 
-import se.uu.farmbio.cp.ICP
-import se.uu.farmbio.cp.alg.SVM
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Logging
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.openscience.cdk.io.SDFWriter
+
+import se.uu.it.cp
+import se.uu.it.cp.ICP
+import se.uu.it.cp.InductiveClassifier
 
 import java.io.StringWriter
 
@@ -16,6 +18,7 @@ trait ConformersWithSignsTransforms {
     method: Int,
     resolution: Int,
     dsInitSize: Int,
+    calibrationPercent: Double,
     numIterations: Int): SBVSPipeline with PoseTransforms
 }
 
@@ -88,6 +91,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
     method: Int,
     resolution: Int,
     dsInitSize: Int,
+    calibrationPercent: Double,
     numIterations: Int) = {
 
     //initializations
@@ -148,14 +152,12 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
       }
             
       //Step 8 Training
-      //Train icps
-      calibrationSizeDynamic = (dsTrain.count * 0.3).toInt
-      val (calibration, properTraining) = ICP.calibrationSplit(lpDsTrain.coalesce(40).cache, calibrationSizeDynamic)
+      val Array(properTraining, calibration) = lpDsTrain.randomSplit(Array(1 - calibrationPercent, calibrationPercent), seed = 11L)
 
-      //Train ICP
-      val svm = new SVM(properTraining.cache, numIterations)
+      //Train ICP  
+      val svm = new MLlibSVM(properTraining.cache, numIterations)
       //SVM based ICP Classifier (our model)
-      val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
+      val icp = ICP.trainClassifier(svm, nOfClasses = 2, calibration.collect)
       lpDsTrain.unpersist()
       properTraining.unpersist()
 
@@ -171,7 +173,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       //Step 9 Prediction using our model
       val predictions = fvDs.map {
-        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, 0.2))
+        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData.toArray, 0.2))
       }
 
       val dsZero: RDD[(String)] = predictions
