@@ -27,6 +27,8 @@ import org.openscience.cdk.io.MDLReader
 import org.openscience.cdk.io.MDLV2000Reader
 import java.io.Reader
 import se.uu.farmbio.vs.SGUtils_Serial
+import org.openscience.cdk.interfaces.IAtomContainer
+
 /**
  * @author laeeq
  */
@@ -43,9 +45,6 @@ object StandalonePrediction {
     val defaultParams = Arglist()
     val parser = new OptionParser[Arglist]("StandalonePrediction") {
       head("Predicting ligands with ready-made model")
-      opt[String]("master")
-        .text("spark master")
-        .action((x, c) => c.copy(master = x))
       arg[String]("<conformers-file>")
         .required()
         .text("path to input SDF conformers file")
@@ -75,34 +74,35 @@ object StandalonePrediction {
     //Loading old_sig2ID Mapping
     val old_sig2ID = SGUtils_Serial.loadSig2IdMap(params.sig2IdPath)
 
-    //Generate Signature of New Molecule
-    //USE STAFFAN NEW IMPLMENTATION
-
     //Creating IteratingSDFReader for reading molecules
-    //CHANGE sdfFile to what we get from STAFFAN NEW IMPLEMENTATION
     val reader = new IteratingSDFReader(
       new FileInputStream(sdfFile), DefaultChemObjectBuilder.getInstance())
-
-    //Reading Signatures and converting them to vector 
-    var res = Seq[(Vector)]()
-
+    
+    //Getting Seq of IAtomContainer from reader
+    var res = Seq[(IAtomContainer)]()
     while (reader.hasNext()) {
-      val mol = reader.next()
-      val Vector = Vectors.parse(mol.getProperty("Signature"))
-      res = res ++ Seq(Vector)
+      //for each molecule in the record compute the signature
+      val mol = reader.next
+      res = res ++ Seq(mol)
     }
-
+    
+    val IAtomArray = res.toArray
+    
+    val IAtomArrayWithFakeCarry = IAtomArray.map { case x => (Unit, x) }
+      
+    //Generate Signature(in vector form) of New Molecule(s)
+    val newSigns = SGUtils_Serial.atoms2LP_carryData(IAtomArrayWithFakeCarry, old_sig2ID, 1, 3)
+   
     //Load Model
     val svmModel = loadModel()
 
     //Predict New molecule(s)
-    val predictions = res.map(features => (features, svmModel.predict(features.toArray, 0.5)))
+    val predictions = newSigns.map{case (sdfMols,features) => (features, svmModel.predict(features.toArray, 0.5))}
 
     //Update Predictions to the Prediction Table
     val pw = new PrintWriter(params.filePath)
     predictions.foreach(pw.println(_))
     pw.close
-
   }
 
   def loadModel() = {
