@@ -92,6 +92,12 @@
 			<artifactId>mariadb-java-client</artifactId>
 			<version>1.7.0</version>
 		</dependency>
+		<dependency>
+			<groupId>com.github.fommil.netlib</groupId>
+			<artifactId>all</artifactId>
+			<version>1.1.2</version>
+			<type>pom</type>
+		</dependency>
 	</dependencies>
 
 	<build>
