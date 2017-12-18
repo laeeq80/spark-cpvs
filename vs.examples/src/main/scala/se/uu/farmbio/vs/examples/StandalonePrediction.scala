@@ -79,7 +79,7 @@ object StandalonePrediction {
     
     //Unit sent as carry, later we can add any type required
     val IAtomArrayWithFakeCarry = IAtomArray.map { case x => (Unit, x) }
-      
+       
     //Generate Signature(in vector form) of New Molecule(s)
     val newSigns = SGUtils_Serial.atoms2LP_carryData(IAtomArrayWithFakeCarry, old_sig2ID, 1, 3)
    
