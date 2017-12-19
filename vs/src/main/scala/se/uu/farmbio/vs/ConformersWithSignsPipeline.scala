@@ -12,9 +12,18 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.RDD.doubleRDDToDoubleRDDFunctions
 import org.apache.spark.storage.StorageLevel
 import org.openscience.cdk.io.SDFWriter
-import se.uu.farmbio.cp.ICP
-import se.uu.farmbio.cp.ICPClassifierModel
-import se.uu.farmbio.cp.alg.SVM
+import org.apache.spark.sql.Row
+
+import org.apache.spark.sql.types._
+
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.ObjectOutputStream
+
+
+import se.uu.it.cp
+import se.uu.it.cp.ICP
+import se.uu.it.cp.InductiveClassifier
 import java.sql.PreparedStatement
 
 trait ConformersWithSignsTransforms {
@@ -97,26 +106,78 @@ object ConformersWithSignsPipeline extends Serializable {
     strWriter.toString() //return the molecule  
   }
 
-  private def insertMaster(receptorPath: String, model: ICPClassifierModel[SVM], pdbCode: String) {
+  private def insertPredictions(receptorPath: String, r_pdbCode: String, predictions: RDD[(String, Set[Double])], sc: SparkContext) {
+    //Reading receptor name from path
+    val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
 
+    //Getting parameters ready in Row format
+    val paramsAsRow = predictions.map {
+      case (sdfmol, predSet) =>
+        val l_id = PosePipeline.parseId(sdfmol)
+        val l_prediction = if (predSet == Set(0.0)) "BAD"
+        else if (predSet == Set(1.0)) "GOOD"
+        else "UNKNOWN"
+        (l_id, l_prediction)
+    }.map {
+      case (l_id, l_prediction) =>
+        Row(r_name, r_pdbCode, l_id, l_prediction)
+    }
+
+    //Creating sqlContext Using sparkContext  
+    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+    val schema =
+      StructType(
+        StructField("r_name", StringType, false) ::
+          StructField("r_pdbCode", StringType, false) ::
+          StructField("l_id", StringType, false) ::
+          StructField("l_prediction", StringType, false) :: Nil)
+
+    //Creating DataFrame using row parameters and schema
+    val df = sqlContext.createDataFrame(paramsAsRow, schema)
+
+    val prop = new java.util.Properties
+    prop.setProperty("driver", "org.mariadb.jdbc.Driver")
+    prop.setProperty("user", "root")
+    prop.setProperty("password", "2264421_root")
+
+    //jdbc mysql url - destination database is named "db_profile"
+    val url = "jdbc:mysql://localhost:3306/db_profile"
+
+    //destination database table 
+    val table = "PREDICTED_LIGANDS"
+
+    //write data from spark dataframe to database
+    df.write.mode("append").jdbc(url, table, prop)
+    df.printSchema()
+  }
+  
+private def insertModels(receptorPath: String, r_model: InductiveClassifier[MLlibSVM, LabeledPoint], r_pdbCode: String) {
     //Getting filename from Path and trimming the extension
     val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
     println("JOB_INFO: The value of r_name is " + r_name)
-    
+
     Class.forName("org.mariadb.jdbc.Driver")
     val jdbcUrl = s"jdbc:mysql://localhost:3306/db_profile?user=root&password=2264421_root"
+    
+    //Preparation object for writing
+    val baos = new ByteArrayOutputStream()
+    val oos = new ObjectOutputStream(baos)
+    oos.writeObject(r_model)
+
+    val r_modelAsBytes = baos.toByteArray()
+    val bais = new ByteArrayInputStream(r_modelAsBytes)
 
     val connection = DriverManager.getConnection(jdbcUrl)
     if (!(connection.isClosed())) {
+      //Writing to Database
+      val sqlInsert: PreparedStatement = connection.prepareStatement("INSERT INTO MODELS(r_name, r_pdbCode, r_model) VALUES (?, ?, ?)")
 
-      val sqlInsert: PreparedStatement = connection.prepareStatement("INSERT INTO RECEPTORS(r_name, pdbCode, model) VALUES (?, ?, ?)")
-      
       println("JOB_INFO: Start Serializing")
-      
+
       // set input parameters
       sqlInsert.setString(1, r_name)
-      sqlInsert.setString(2, pdbCode)
-      sqlInsert.setObject(3, model)
+      sqlInsert.setString(2, r_pdbCode)
+      sqlInsert.setBinaryStream(3, bais, r_modelAsBytes.length)
       sqlInsert.executeUpdate()
 
       sqlInsert.close()
@@ -181,7 +242,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       val dsInitToDock = dsInit.mapPartitions(x => Seq(x.mkString("\n")).iterator)
 
-      //Step 3
+      //Step 2
       //Docking the sampled dataset
       val dsDock = ConformerPipeline
         .getDockingRDD(receptorPath, method, resolution, dockTimePerMol = false, sc, dsInitToDock)
@@ -190,11 +251,11 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       logInfo("JOB_INFO: Docking Completed in cycle " + counter)
 
-      //Step 4
+      //Step 3
       //Subtract the sampled molecules from main dataset
       ds = ds.subtract(dsInit)
 
-      //Step 5
+      //Step 4
       //Keeping processed poses
       if (poses == null) {
         poses = dsDock
@@ -202,7 +263,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         poses = poses.union(dsDock)
       }
 
-      //Step 6 and 7 Computing dsTopAndBottom
+      //Step 5 and 6 Computing dsTopAndBottom
       val parseScoreRDD = dsDock.map(PosePipeline.parseScore(method)).persist(StorageLevel.MEMORY_ONLY)
       val parseScoreHistogram = parseScoreRDD.histogram(10)
 
@@ -212,7 +273,7 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
           ConformersWithSignsPipeline.labelTopAndBottom(mol, score, parseScoreHistogram._1, badIn, goodIn)
       }.map(_.trim).filter(_.nonEmpty)
 
-      //Step 8 Union dsTrain and dsTopAndBottom
+      //Step 7 Union dsTrain and dsTopAndBottom
       if (dsTrain == null) {
         dsTrain = dsTopAndBottom
       } else {
@@ -224,16 +285,14 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
         sdfmol => ConformersWithSignsPipeline.getLPRDD(sdfmol)
       }
 
-      //Step 9 Training
-      //Train icps
-      calibrationSizeDynamic = (dsTrain.count * calibrationPercent).toInt
-      val (calibration, properTraining) = ICP.calibrationSplit(
-        lpDsTrain, calibrationSizeDynamic, stratified)
+      //Step 8 Training
+      //Splitting data into Proper training set and calibration set
+      val Array(properTraining, calibration) = lpDsTrain.randomSplit(Array(1 - calibrationPercent, calibrationPercent), seed = 11L)
 
-      //Train ICP
-      val svm = new SVM(properTraining.persist(StorageLevel.MEMORY_AND_DISK_SER), numIterations)
+      //Train ICP  
+      val svm = new MLlibSVM(properTraining.persist(StorageLevel.MEMORY_AND_DISK_SER), numIterations)
       //SVM based ICP Classifier (our model)
-      val icp = ICP.trainClassifier(svm, numClasses = 2, calibration)
+      val icp = ICP.trainClassifier(svm, nOfClasses = 2, calibration.collect)
 
       //ConformersWithSignsPipeline.insertMaster(receptorPath, icp, pdbCode)
 
@@ -243,16 +302,16 @@ private[vs] class ConformersWithSignsPipeline(override val rdd: RDD[String])
 
       logInfo("JOB_INFO: Training Completed in cycle " + counter)
 
-      //Step 8 Prediction using our model on complete dataset
+      //Step 10 Prediction using our model on complete dataset
       val predictions = fvDsComplete.map {
-        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData, confidence))
+        case (sdfmol, predictionData) => (sdfmol, icp.predict(predictionData.toArray, confidence))
       }
 
       val dsZeroPredicted: RDD[(String)] = predictions
         .filter { case (sdfmol, prediction) => (prediction == Set(0.0)) }
         .map { case (sdfmol, prediction) => sdfmol }
 
-      //Step 10 Subtracting {0} mols from main dataset
+      //Step 11 Subtracting {0} mols from main dataset
       ds = ds.subtract(dsZeroPredicted).persist(StorageLevel.MEMORY_AND_DISK_SER)
 
       //Computing efficiency for stopping loop
