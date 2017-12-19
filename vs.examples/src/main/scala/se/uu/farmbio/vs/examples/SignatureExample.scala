@@ -12,6 +12,7 @@ object SignatureExample extends Logging {
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
+    sig2IdPath :String = null,
     signatureOutputFile: String = null)
 
   def main(args: Array[String]) {
@@ -25,6 +26,10 @@ object SignatureExample extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
+      arg[String]("<sig2Id-file>")
+        .required()
+        .text("path to save sig2Id")
+        .action((x, c) => c.copy(sig2IdPath = x))  
       arg[String]("<signature-output-file>")
         .required()
         .text("path to output signature file")
@@ -51,7 +56,7 @@ object SignatureExample extends Logging {
     val sc = new SparkContext(conf)
     val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-      .generateSignatures("data/sig2IdMap")
+      .generateSignatures(params.sig2IdPath)
       .getMolecules
       .flatMap { mol => SBVSPipeline.splitSDFmolecules(mol) }
       .collect()

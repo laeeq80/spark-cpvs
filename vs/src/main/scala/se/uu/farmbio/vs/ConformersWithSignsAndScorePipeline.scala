@@ -27,6 +27,7 @@ trait ConformersWithSignsAndScoreTransforms {
   def dockWithML(
     receptorPath: String,
     pdbCode: String,
+    jdbcHostname : String,
     dsInitSize: Int,
     dsIncreSize: Int,
     calibrationPercent: Double,
@@ -150,7 +151,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
 
   }
 
-  private def insertPredictions(receptorPath: String, r_pdbCode: String, predictions: RDD[(String, Set[Double])], sc: SparkContext) {
+  private def insertPredictions(receptorPath: String, r_pdbCode: String, jdbcHostname : String, predictions: RDD[(String, Set[Double])], sc: SparkContext) {
     //Reading receptor name from path
     val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
 
@@ -185,7 +186,7 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
     prop.setProperty("password", "2264421_root")
 
     //jdbc mysql url - destination database is named "db_profile"
-    val url = "jdbc:mysql://localhost:3306/db_profile"
+    val url = "jdbc:mysql://" + jdbcHostname + ":3306/db_profile"
 
     //destination database table 
     val table = "PREDICTED_LIGANDS"
@@ -195,13 +196,13 @@ private[vs] object ConformersWithSignsAndScorePipeline extends Serializable {
     df.printSchema()
   }
 
-  private def insertModels(receptorPath: String, r_model: InductiveClassifier[MLlibSVM, LabeledPoint], r_pdbCode: String) {
+  private def insertModels(receptorPath: String, r_model: InductiveClassifier[MLlibSVM, LabeledPoint], r_pdbCode: String, jdbcHostname : String) {
     //Getting filename from Path and trimming the extension
     val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
     println("JOB_INFO: The value of r_name is " + r_name)
 
     Class.forName("org.mariadb.jdbc.Driver")
-    val jdbcUrl = s"jdbc:mysql://localhost:3306/db_profile?user=root&password=2264421_root"
+    val jdbcUrl = s"jdbc:mysql://" + jdbcHostname + ":3306/db_profile?user=root&password=2264421_root"
     
     //Preparation object for writing
     val baos = new ByteArrayOutputStream()
@@ -241,6 +242,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
   override def dockWithML(
     receptorPath: String,
     pdbCode: String,
+    jdbcHostname: String,
     dsInitSize: Int,
     dsIncreSize: Int,
     calibrationPercent: Double,
@@ -361,7 +363,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       //SVM based ICP Classifier (our model)
       val icp = ICP.trainClassifier(svm, nOfClasses = 2, calibration.collect)
         
-      ConformersWithSignsAndScorePipeline.insertModels(receptorPath, icp, pdbCode)
+      ConformersWithSignsAndScorePipeline.insertModels(receptorPath, icp, pdbCode, jdbcHostname)
 
       lpDsTrain.unpersist()
       properTraining.unpersist()
@@ -427,14 +429,18 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
 
       dsInit.unpersist()
 
-      ConformersWithSignsAndScorePipeline.insertPredictions(receptorPath, pdbCode, predictions, sc)
+      ConformersWithSignsAndScorePipeline.insertPredictions(receptorPath, pdbCode, jdbcHostname, predictions, sc)
 
       counter = counter + 1
       if (eff > 0.8)
         effCounter = effCounter + 1
       else
         effCounter = 0
-
+      /*if (effCounter >= 2){
+        ConformersWithSignsAndScorePipeline.insertModels(receptorPath, icp, pdbCode)
+        ConformersWithSignsAndScorePipeline.insertPredictions(receptorPath, pdbCode, predictions, sc)
+      }*/
+        
     } while (effCounter < 2 && !singleCycle)
     logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
 

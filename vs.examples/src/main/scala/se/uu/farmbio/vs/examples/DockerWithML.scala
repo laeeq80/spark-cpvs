@@ -40,7 +40,8 @@ object DockerWithML extends Logging {
     singleCycle: Boolean = false,
     stratified: Boolean = false,
     confidence: Double = 0.2,
-    pdbCode: String = null)
+    pdbCode: String = null,
+    jdbcHostname: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -103,6 +104,10 @@ object DockerWithML extends Logging {
         .required()
         .text("receptor PDB code")
         .action((x, c) => c.copy(pdbCode = x))
+      opt[String]("jdbcHostname")
+        .required()
+        .text("jdbc hostname")
+        .action((x, c) => c.copy(jdbcHostname = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -132,6 +137,7 @@ object DockerWithML extends Logging {
     val posesWithSigns = new ConformersWithSignsAndScorePipeline(poses)
       .dockWithML(params.receptorFile,
         params.pdbCode,
+        params.jdbcHostname,
         params.dsInitSize,
         params.dsIncreSize,
         params.calibrationPercent,
@@ -169,7 +175,7 @@ object DockerWithML extends Logging {
 
     //Reading receptor name from path
     val r_name = FilenameUtils.removeExtension(Paths.get(params.receptorFile).getFileName.toString())
-    
+
     //Saving All molecule scores to Database
     //Getting parameters ready in Row format
     val paramsAsRow = posesWithSigns.getMolecules
@@ -180,7 +186,7 @@ object DockerWithML extends Logging {
         case (r_name, idAndscore) =>
           Row(r_name, params.pdbCode, idAndscore._1, idAndscore._2)
       }
-      
+
     //Creating sqlContext Using sparkContext  
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
     val schema =
@@ -199,7 +205,7 @@ object DockerWithML extends Logging {
     prop.setProperty("password", "2264421_root")
 
     //jdbc mysql url - destination database is named "db_profile"
-    val url = "jdbc:mysql://localhost:3306/db_profile"
+    val url = "jdbc:mysql://" + params.jdbcHostname + ":3306/db_profile"
 
     //destination database table 
     val table = "DOCKED_LIGANDS"
