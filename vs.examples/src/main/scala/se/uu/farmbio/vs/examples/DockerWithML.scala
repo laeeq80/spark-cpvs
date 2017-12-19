@@ -1,18 +1,30 @@
 package se.uu.farmbio.vs.examples
 
+import java.nio.file.Paths
+
+import org.apache.commons.io.FilenameUtils
+import org.apache.hadoop.io.LongWritable
+import org.apache.hadoop.io.Text
 import org.apache.spark.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
-import scopt.OptionParser
-import se.uu.farmbio.vs.SBVSPipeline
-import se.uu.farmbio.vs.PosePipeline
+import org.apache.spark.mllib.linalg.DenseVector
+import org.apache.spark.mllib.linalg.SparseVector
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.types.StringType
+import org.apache.spark.sql.types.StructField
+import org.apache.spark.sql.types.StructType
+
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
-import org.apache.hadoop.io.LongWritable
-import org.apache.hadoop.io.Text
+import scopt.OptionParser
 import se.uu.farmbio.parsers.SDFInputFormat
 import se.uu.farmbio.vs.ConformersWithSignsPipeline
+import se.uu.farmbio.vs.PosePipeline
+import se.uu.farmbio.vs.SBVSPipeline
+
 
 /**
  * @author laeeq
@@ -23,6 +35,7 @@ object DockerWithML extends Logging {
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
+    sig2IdPath :String = null,
     topPosesPath: String = null,
     receptorFile: String = null,
     oeLicensePath: String = null,
@@ -40,7 +53,8 @@ object DockerWithML extends Logging {
     stratified: Boolean = false,
     confidence: Double = 0.2,
     size: String = "30",
-    pdbCode: String = null)
+    pdbCode: String = null,
+    jdbcHostname: String = null)
 
   def main(args: Array[String]) {
     val defaultParams = Arglist()
@@ -53,6 +67,10 @@ object DockerWithML extends Logging {
         .required()
         .text("path to input SDF conformers file")
         .action((x, c) => c.copy(conformersFile = x))
+      arg[String]("<sig2Id-file>")
+        .required()
+        .text("path to save sig2Id")
+        .action((x, c) => c.copy(sig2IdPath = x))  
       arg[String]("<receptor-file>")
         .required()
         .text("path to input OEB receptor file")
@@ -113,6 +131,10 @@ object DockerWithML extends Logging {
         .required()
         .text("receptor PDB code")
         .action((x, c) => c.copy(pdbCode = x))
+      opt[String]("jdbcHostname")
+        .required()
+        .text("jdbc hostname")
+        .action((x, c) => c.copy(jdbcHostname = x))
     }
 
     parser.parse(args, defaultParams).map { params =>
@@ -153,7 +175,7 @@ object DockerWithML extends Logging {
 
     val signatures = new SBVSPipeline(sc)
       .readConformerFile(params.conformersFile)
-      .generateSignatures()
+      .generateSignatures(params.sig2IdPath)
       .getMolecules
       .saveAsTextFile(params.signatureFile)
 
@@ -189,6 +211,7 @@ object DockerWithML extends Logging {
       .readConformerWithSignsFile(params.signatureFile)
       .dockWithML(params.receptorFile,
         params.pdbCode,
+        params.jdbcHostname,
         OEDockMethod.Chemgauss4,
         OESearchResolution.Standard,
         params.dsInitSize,
@@ -200,9 +223,9 @@ object DockerWithML extends Logging {
         params.singleCycle,
         params.stratified,
         params.confidence)
-      .getTopPoses(params.topN)
+    val predictedTopPoses = conformerWithSigns.getTopPoses(params.topN)
 
-    sc2.parallelize(conformerWithSigns, 1).saveAsTextFile(params.topPosesPath)
+    sc2.parallelize(predictedTopPoses, 1).saveAsTextFile(params.topPosesPath)
 
     val mols1 = sc2.hadoopFile[LongWritable, Text, SDFInputFormat](params.firstFile, 2)
       .flatMap(mol => SBVSPipeline.splitSDFmolecules(mol._2.toString))
@@ -223,6 +246,49 @@ object DockerWithML extends Logging {
       " and good bins ranges from " + params.goodIn + "-10")
     logInfo("JOB_INFO: Number of molecules matched are " + counter)
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
+
+    //Reading receptor name from path
+    val r_name = FilenameUtils.removeExtension(Paths.get(params.receptorFile).getFileName.toString())
+
+    //Saving All molecule scores to Database
+    //Getting parameters ready in Row format
+    val paramsAsRow = conformerWithSigns.getMolecules
+      .map { mol =>
+        (r_name, PosePipeline.parseIdAndScore(OEDockMethod.Chemgauss4)(mol))
+      }
+      .map {
+        case (r_name, idAndscore) =>
+          Row(r_name, params.pdbCode, idAndscore._1, idAndscore._2)
+      }
+
+    //Creating sqlContext Using sparkContext  
+    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+    val schema =
+      StructType(
+        StructField("r_name", StringType, false) ::
+          StructField("r_pdbCode", StringType, false) ::
+          StructField("l_id", StringType, false) ::
+          StructField("l_score", DoubleType, false) :: Nil)
+
+    //Creating DataFrame using row parameters and schema      
+    val df = sqlContext.createDataFrame(paramsAsRow, schema)
+
+    val prop = new java.util.Properties
+    prop.setProperty("driver", "org.mariadb.jdbc.Driver")
+    prop.setProperty("user", "root")
+    prop.setProperty("password", "2264421_root")
+
+    //jdbc mysql url - destination database is named "db_profile"
+    val url = "jdbc:mysql://" + params.jdbcHostname + ":3306/db_profile"
+
+    //destination database table 
+    val table = "DOCKED_LIGANDS"
+
+    //write data from spark dataframe to database
+    df.write.mode("append").jdbc(url, table, prop)
+    logInfo("JOB_INFO: Writing to DOCKED_LIGANDS")
+    df.printSchema()
+
     sc2.stop()
 
   }

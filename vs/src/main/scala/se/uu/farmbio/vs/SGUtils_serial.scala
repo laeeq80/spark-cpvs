@@ -9,14 +9,19 @@ import scala.io.Source
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 
 import se.uu.farmbio.sg.types.Sig2ID_Mapping
+import se.uu.farmbio.sg.exceptions._
 
 import scala.reflect.ClassTag
 import scala.collection.immutable.ListMap
 import org.openscience.cdk.interfaces.IAtomContainer
 import org.openscience.cdk.signature.AtomSignature
-import se.uu.farmbio.sg.exceptions._
+
 import util.control.Breaks._
 import scala.collection.JavaConversions._
+
+/**
+ * @author laeeq and staffan
+ */
 
 trait SGUtils_SerialTrait {
 
