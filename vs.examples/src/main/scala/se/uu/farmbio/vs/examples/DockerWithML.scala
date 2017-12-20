@@ -25,7 +25,6 @@ import se.uu.farmbio.vs.ConformersWithSignsPipeline
 import se.uu.farmbio.vs.PosePipeline
 import se.uu.farmbio.vs.SBVSPipeline
 
-
 /**
  * @author laeeq
  */
@@ -35,7 +34,7 @@ object DockerWithML extends Logging {
   case class Arglist(
     master: String = null,
     conformersFile: String = null,
-    sig2IdPath :String = null,
+    sig2IdPath: String = null,
     topPosesPath: String = null,
     receptorFile: String = null,
     oeLicensePath: String = null,
@@ -70,7 +69,7 @@ object DockerWithML extends Logging {
       arg[String]("<sig2Id-file>")
         .required()
         .text("path to save sig2Id")
-        .action((x, c) => c.copy(sig2IdPath = x))  
+        .action((x, c) => c.copy(sig2IdPath = x))
       arg[String]("<receptor-file>")
         .required()
         .text("path to input OEB receptor file")
@@ -95,21 +94,27 @@ object DockerWithML extends Logging {
         .text("path to write and read intermediate signatures")
         .action((x, c) => c.copy(signatureFile = x))
       opt[Int]("dsInitSize")
-        .text("initial Data Size to be docked (default: 100)")
+        .required()
+        .text("initial Data Size to be docked")
         .action((x, c) => c.copy(dsInitSize = x))
       opt[Int]("dsIncreSize")
-        .text("incremental Data Size to be docked (default: 50)")
+        .required()
+        .text("incremental Data Size to be docked")
         .action((x, c) => c.copy(dsIncreSize = x))
       opt[Double]("calibrationPercent")
+        .required()
         .text("calibration Percent from training set (default: 0.3)")
         .action((x, c) => c.copy(calibrationPercent = x))
       opt[Int]("numIterations")
+        .required()
         .text("number of iternations for the ML model training (default: 100)")
         .action((x, c) => c.copy(numIterations = x))
       opt[Int]("badIn")
+        .required()
         .text("UpperBound of bad bins")
         .action((x, c) => c.copy(badIn = x))
       opt[Int]("goodIn")
+        .required()
         .text("LowerBound of good bins")
         .action((x, c) => c.copy(goodIn = x))
       opt[Int]("topN")
@@ -122,7 +127,8 @@ object DockerWithML extends Logging {
         .text("if set, stratified sampling is performed for calibrationSplit")
         .action((_, c) => c.copy(stratified = true))
       opt[Double]("confidence")
-        .text("confidence for conformal prediction (default: 1 - 0.2)")
+        .required()
+        .text("confidence for conformal prediction (works as 1 - value entered)")
         .action((x, c) => c.copy(confidence = x))
       opt[String]("size")
         .text("it controls how many molecules are handled within a task (default: 30).")
