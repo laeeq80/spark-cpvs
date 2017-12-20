@@ -298,7 +298,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       logInfo("\nJOB_INFO: cycle " + counter
         + "   ################################################################\n")
 
-      logInfo("JOB_INFO: dsInit in cycle " + counter + " is " + dsInit.count)
+      //logInfo("JOB_INFO: dsInit in cycle " + counter + " is " + dsInit.count)
 
       //Step 4
       //Keeping processed poses
@@ -323,7 +323,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         dsTrain = dsTopAndBottom
       else
         dsTrain = dsTrain.union(dsTopAndBottom)
-      logInfo("JOB_INFO: Training set size in cycle " + counter + " is " + dsTrain.count)
+      //logInfo("JOB_INFO: Training set size in cycle " + counter + " is " + dsTrain.count)
 
       //Counting zeroes and ones in each training set in each cycle
       if (dsTrain == null) {
@@ -345,8 +345,8 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
           case (mol) => ConformersWithSignsAndScorePipeline.getLabel(mol) == "1.0"
         }
       }
-      logInfo("JOB_INFO: Zero Labeled Mols in Training set in cycle " + counter + " are " + dsBadInTrainingSet.count)
-      logInfo("JOB_INFO: One Labeled Mols in Training set in cycle " + counter + " are " + dsGoodInTrainingSet.count)
+      //logInfo("JOB_INFO: Zero Labeled Mols in Training set in cycle " + counter + " are " + dsBadInTrainingSet.count)
+      //logInfo("JOB_INFO: One Labeled Mols in Training set in cycle " + counter + " are " + dsGoodInTrainingSet.count)
 
       //Converting SDF training set to LabeledPoint(label+features) required for conformal prediction
       val lpDsTrain = dsTrain.flatMap {
@@ -390,8 +390,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         dsZeroRemoved = dsZeroPredicted.subtract(poses)
       else
         dsZeroRemoved = dsZeroPredicted.subtract(cumulativeZeroRemoved.union(poses))
-
-      ds = ds.subtract(dsZeroRemoved)
+      /*
       logInfo("JOB_INFO: Number of bad mols predicted in cycle " +
         counter + " are " + dsZeroPredicted.count)
       logInfo("JOB_INFO: Number of bad mols removed in cycle " +
@@ -402,7 +401,7 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
         counter + " are " + dsBothUnknown.count)
       logInfo("JOB_INFO: Number of Empty Unknown mols predicted in cycle " +
         counter + " are " + dsEmptyUnknown.count)
-
+*/
       //Keeping all previous removed bad mols
       if (cumulativeZeroRemoved == null)
         cumulativeZeroRemoved = dsZeroRemoved
@@ -441,18 +440,18 @@ private[vs] class ConformersWithSignsAndScorePipeline(override val rdd: RDD[Stri
       }
 
     } while (effCounter < 2 && !singleCycle)
-    logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
+    //logInfo("JOB_INFO: Total number of bad mols removed are " + cumulativeZeroRemoved.count)
 
     //Docking rest of the dsOne mols
     val dsDockOne = dsOnePredicted.subtract(poses).cache()
-    logInfo("JOB_INFO: Number of mols in dsDockOne are " + dsDockOne.count)
+    //logInfo("JOB_INFO: Number of mols in dsDockOne are " + dsDockOne.count)
 
     //Keeping rest of processed poses i.e. dsOne mol poses
     if (poses == null)
       poses = dsDockOne
     else
       poses = poses.union(dsDockOne)
-    logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
+    //logInfo("JOB_INFO: Total number of docked mols are " + poses.count)
     new PosePipeline(poses)
 
   }
