@@ -3,27 +3,19 @@ package se.uu.farmbio.vs.examples
 import java.nio.file.Paths
 
 import org.apache.commons.io.FilenameUtils
-import org.apache.hadoop.io.LongWritable
-import org.apache.hadoop.io.Text
+import org.apache.hadoop.io.{LongWritable, Text}
 import org.apache.spark.Logging
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.DenseVector
-import org.apache.spark.mllib.linalg.SparseVector
+import org.apache.spark.{ SparkConf, SparkContext }
+import org.apache.spark.mllib.linalg.{ DenseVector, SparseVector }
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.DoubleType
-import org.apache.spark.sql.types.StringType
-import org.apache.spark.sql.types.StructField
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types._
 
 import openeye.oedocking.OEDockMethod
 import openeye.oedocking.OESearchResolution
 import scopt.OptionParser
 import se.uu.farmbio.parsers.SDFInputFormat
-import se.uu.farmbio.vs.ConformersWithSignsPipeline
-import se.uu.farmbio.vs.PosePipeline
-import se.uu.farmbio.vs.SBVSPipeline
+import se.uu.farmbio.vs.{SBVSPipeline, PosePipeline, ConformersWithSignsPipeline}
 
 /**
  * @author laeeq
@@ -254,13 +246,13 @@ object DockerWithML extends Logging {
     logInfo("JOB_INFO: Percentage of same results is " + (counter / params.topN) * 100)
 
     //Reading receptor name from path
-    val r_name = FilenameUtils.removeExtension(Paths.get(params.receptorFile).getFileName.toString())
+    val rName = FilenameUtils.removeExtension(Paths.get(params.receptorFile).getFileName.toString())
 
     //Saving All molecule scores to Database
     //Getting parameters ready in Row format
     val paramsAsRow = conformerWithSigns.getMolecules
       .map { mol =>
-        (r_name, PosePipeline.parseIdAndScore(OEDockMethod.Chemgauss4)(mol))
+        (rName, PosePipeline.parseIdAndScore(OEDockMethod.Chemgauss4)(mol))
       }
       .map {
         case (r_name, idAndscore) =>

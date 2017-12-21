@@ -107,21 +107,21 @@ object ConformersWithSignsPipeline extends Serializable {
     strWriter.toString() //return the molecule  
   }
 
-  private def insertPredictions(receptorPath: String, r_pdbCode: String, jdbcHostname : String, predictions: RDD[(String, Set[Double])], sc: SparkContext) {
+  private def insertPredictions(receptorPath: String, rPdbCode: String, jdbcHostname : String, predictions: RDD[(String, Set[Double])], sc: SparkContext) {
     //Reading receptor name from path
-    val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
+    val rName = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
 
     //Getting parameters ready in Row format
     val paramsAsRow = predictions.map {
       case (sdfmol, predSet) =>
-        val l_id = PosePipeline.parseId(sdfmol)
-        val l_prediction = if (predSet == Set(0.0)) "BAD"
+        val lId = PosePipeline.parseId(sdfmol)
+        val lPrediction = if (predSet == Set(0.0)) "BAD"
         else if (predSet == Set(1.0)) "GOOD"
         else "UNKNOWN"
-        (l_id, l_prediction)
+        (lId, lPrediction)
     }.map {
-      case (l_id, l_prediction) =>
-        Row(r_name, r_pdbCode, l_id, l_prediction)
+      case (lId, lPrediction) =>
+        Row(rName, rPdbCode, lId, lPrediction)
     }
 
     //Creating sqlContext Using sparkContext  
@@ -152,10 +152,10 @@ object ConformersWithSignsPipeline extends Serializable {
     df.printSchema()
   }
   
-private def insertModels(receptorPath: String, r_model: InductiveClassifier[MLlibSVM, LabeledPoint], r_pdbCode: String , jdbcHostname : String) {
+private def insertModels(receptorPath: String, rModel: InductiveClassifier[MLlibSVM, LabeledPoint], rPdbCode: String , jdbcHostname : String) {
     //Getting filename from Path and trimming the extension
-    val r_name = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
-    println("JOB_INFO: The value of r_name is " + r_name)
+    val rName = FilenameUtils.removeExtension(Paths.get(receptorPath).getFileName.toString())
+    println("JOB_INFO: The value of rName is " + rName)
 
     Class.forName("org.mariadb.jdbc.Driver")
     val jdbcUrl = s"jdbc:mysql://" + jdbcHostname + ":3306/db_profile?user=root&password=2264421_root"
@@ -163,10 +163,10 @@ private def insertModels(receptorPath: String, r_model: InductiveClassifier[MLli
     //Preparation object for writing
     val baos = new ByteArrayOutputStream()
     val oos = new ObjectOutputStream(baos)
-    oos.writeObject(r_model)
+    oos.writeObject(rModel)
 
-    val r_modelAsBytes = baos.toByteArray()
-    val bais = new ByteArrayInputStream(r_modelAsBytes)
+    val rModelAsBytes = baos.toByteArray()
+    val bais = new ByteArrayInputStream(rModelAsBytes)
 
     val connection = DriverManager.getConnection(jdbcUrl)
     if (!(connection.isClosed())) {
@@ -176,9 +176,9 @@ private def insertModels(receptorPath: String, r_model: InductiveClassifier[MLli
       println("JOB_INFO: Start Serializing")
 
       // set input parameters
-      sqlInsert.setString(1, r_name)
-      sqlInsert.setString(2, r_pdbCode)
-      sqlInsert.setBinaryStream(3, bais, r_modelAsBytes.length)
+      sqlInsert.setString(1, rName)
+      sqlInsert.setString(2, rPdbCode)
+      sqlInsert.setBinaryStream(3, bais, rModelAsBytes.length)
       sqlInsert.executeUpdate()
 
       sqlInsert.close()

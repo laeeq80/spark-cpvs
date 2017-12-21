@@ -1,10 +1,6 @@
 package se.uu.farmbio.vs.examples
 
-import java.io.ByteArrayInputStream
-import java.io.File
-import java.io.FileInputStream
-import java.io.ObjectInputStream
-import java.io.PrintWriter
+import java.io.{ ByteArrayInputStream, ObjectInputStream, FileInputStream, PrintWriter, File }
 import java.sql.DriverManager
 
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -13,8 +9,8 @@ import org.openscience.cdk.interfaces.IAtomContainer
 import org.openscience.cdk.io.iterator.IteratingSDFReader
 
 import scopt.OptionParser
-import se.uu.farmbio.vs.MLlibSVM
-import se.uu.farmbio.vs.SGUtils_Serial
+import se.uu.farmbio.vs.{ MLlibSVM, SGUtils_Serial }
+
 import se.uu.it.cp.InductiveClassifier
 
 /**
@@ -59,13 +55,13 @@ object StandalonePrediction {
     //New molecules
     val sdfFile = new File(params.conformersFile);
 
-    //Loading old_sig2ID Mapping
-    val old_sig2ID = SGUtils_Serial.loadSig2IdMap(params.sig2IdPath)
+    //Loading oldSig2ID Mapping
+    val oldSig2ID = SGUtils_Serial.loadSig2IdMap(params.sig2IdPath)
 
     //Creating IteratingSDFReader for reading molecules
     val reader = new IteratingSDFReader(
       new FileInputStream(sdfFile), DefaultChemObjectBuilder.getInstance())
-    
+
     //Getting Seq of IAtomContainer from reader
     var res = Seq[(IAtomContainer)]()
     while (reader.hasNext()) {
@@ -73,21 +69,21 @@ object StandalonePrediction {
       val mol = reader.next
       res = res ++ Seq(mol)
     }
-    
+
     //Array of IAtomContainers
-    val IAtomArray = res.toArray
-    
+    val iAtomArray = res.toArray
+
     //Unit sent as carry, later we can add any type required
-    val IAtomArrayWithFakeCarry = IAtomArray.map { case x => (Unit, x) }
-       
+    val iAtomArrayWithFakeCarry = iAtomArray.map { case x => (Unit, x) }
+
     //Generate Signature(in vector form) of New Molecule(s)
-    val newSigns = SGUtils_Serial.atoms2LP_carryData(IAtomArrayWithFakeCarry, old_sig2ID, 1, 3)
-   
+    val newSigns = SGUtils_Serial.atoms2LP_carryData(iAtomArrayWithFakeCarry, oldSig2ID, 1, 3)
+
     //Load Model
     val svmModel = loadModel()
 
     //Predict New molecule(s)
-    val predictions = newSigns.map{case (sdfMols,features) => (features, svmModel.predict(features.toArray, 0.5))}
+    val predictions = newSigns.map { case (sdfMols, features) => (features, svmModel.predict(features.toArray, 0.5)) }
 
     //Update Predictions to the Prediction Table
     val pw = new PrintWriter(params.filePath)

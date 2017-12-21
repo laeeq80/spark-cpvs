@@ -1,13 +1,10 @@
 package se.uu.farmbio.vs
 
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkContext
-import org.apache.spark.mllib.classification.SVMWithSGD
+import org.apache.spark.{ SparkConf, SparkContext }
 
-import org.apache.spark.mllib.classification.SVMModel
-import org.apache.spark.mllib.optimization.LBFGS
-import org.apache.spark.mllib.optimization.HingeGradient
-import org.apache.spark.mllib.optimization.SquaredL2Updater
+import org.apache.spark.mllib.classification.{ SVMWithSGD, SVMModel }
+
+import org.apache.spark.mllib.optimization.{ LBFGS, HingeGradient, SquaredL2Updater }
 
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
